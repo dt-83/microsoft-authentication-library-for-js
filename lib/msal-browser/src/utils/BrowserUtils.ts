@@ -2,10 +2,12 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-import { INetworkModule, UrlString } from "@azure/msal-common";
+
+import { Constants, INetworkModule, Logger, UrlString } from "@azure/msal-common";
 import { FetchClient } from "../network/FetchClient";
 import { XhrClient } from "../network/XhrClient";
 import { BrowserAuthError } from "../error/BrowserAuthError";
+import { InteractionType } from "./BrowserConstants";
 
 /**
  * Utility class for browser specific functions
@@ -19,19 +21,33 @@ export class BrowserUtils {
      * @param {string} urlNavigate - URL of the authorization endpoint
      * @param {boolean} noHistory - boolean flag, uses .replace() instead of .assign() if true
      */
-    static navigateWindow(urlNavigate: string, noHistory?: boolean): void {
+    static navigateWindow(urlNavigate: string, navigationTimeout: number, logger: Logger, noHistory?: boolean): Promise<void> {
         if (noHistory) {
             window.location.replace(urlNavigate);
         } else {
             window.location.assign(urlNavigate);
         }
+
+        // To block code from running after navigation, this should not throw if navigation succeeds
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                logger.warning("Expected to navigate away from the current page but timeout occurred.");
+                resolve();
+            }, navigationTimeout);
+        });
     }
 
     /**
      * Clears hash from window url.
      */
     static clearHash(): void {
-        window.location.hash = "";
+        // Office.js sets history.replaceState to null
+        if (typeof history.replaceState === "function") {
+            // Full removes "#" from url
+            history.replaceState(null, Constants.EMPTY_STRING, `${window.location.pathname}${window.location.search}`);
+        } else {
+            window.location.hash = "";
+        }
     }
 
     /**
@@ -73,7 +89,7 @@ export class BrowserUtils {
      * Returns best compatible network client object. 
      */
     static getBrowserNetworkClient(): INetworkModule {
-        if (window.fetch) {
+        if (window.fetch && window.Headers) {
             return new FetchClient();
         } else {
             return new XhrClient();
@@ -89,6 +105,29 @@ export class BrowserUtils {
         // return an error if called from the hidden iframe created by the msal js silent calls
         if (isResponseHash && BrowserUtils.isInIframe()) {
             throw BrowserAuthError.createBlockReloadInHiddenIframeError();
+        }
+    }
+
+    /**
+     * Block redirect operations in iframes unless explicitly allowed
+     * @param interactionType Interaction type for the request
+     * @param allowRedirectInIframe Config value to allow redirects when app is inside an iframe
+     */
+    static blockRedirectInIframe(interactionType: InteractionType, allowRedirectInIframe: boolean): void {
+        const isIframedApp = BrowserUtils.isInIframe();
+        if (interactionType === InteractionType.Redirect && isIframedApp && !allowRedirectInIframe) {
+            // If we are not in top frame, we shouldn't redirect. This is also handled by the service.
+            throw BrowserAuthError.createRedirectInIframeError(isIframedApp);
+        }
+    }
+
+    /**
+     * Throws error if token requests are made in non-browser environment
+     * @param isBrowserEnvironment Flag indicating if environment is a browser.
+     */
+    static blockNonBrowserEnvironment(isBrowserEnvironment: boolean): void {
+        if (!isBrowserEnvironment) {
+            throw BrowserAuthError.createNonBrowserEnvironmentError();
         }
     }
 

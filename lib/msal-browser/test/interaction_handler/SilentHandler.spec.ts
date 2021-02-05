@@ -1,40 +1,26 @@
+/*
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License.
+ */
+
 import chai from "chai";
 import "mocha";
 import chaiAsPromised from "chai-as-promised";
-import { PkceCodes, NetworkRequestOptions, LogLevel, AuthorityFactory, AuthorizationCodeRequest, Constants, CacheManager, AuthorizationCodeClient } from "@azure/msal-common";
+import { PkceCodes, NetworkRequestOptions, LogLevel, AuthorityFactory, AuthorizationCodeRequest, Constants, AuthorizationCodeClient, ProtocolMode, Logger, AuthenticationScheme } from "@azure/msal-common";
 import sinon from "sinon";
 import { SilentHandler } from "../../src/interaction_handler/SilentHandler";
-import { BrowserStorage } from "../../src/cache/BrowserStorage";
 import { Configuration, buildConfiguration } from "../../src/config/Configuration";
-import { TEST_CONFIG, testNavUrl, TEST_URIS, RANDOM_TEST_GUID } from "../utils/StringConstants";
+import { TEST_CONFIG, testNavUrl, TEST_URIS, RANDOM_TEST_GUID, TEST_POP_VALUES } from "../utils/StringConstants";
 import { InteractionHandler } from "../../src/interaction_handler/InteractionHandler";
 import { BrowserAuthError, BrowserAuthErrorMessage } from "../../src/error/BrowserAuthError";
 import { CryptoOps } from "../../src/crypto/CryptoOps";
+import { TestStorageManager } from "../cache/TestStorageManager";
+import { BrowserCacheManager } from "../../src/cache/BrowserCacheManager";
 
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
 const DEFAULT_IFRAME_TIMEOUT_MS = 6000;
-class TestStorageInterface extends CacheManager {
-    setItem(key: string, value: string | object, type?: string): void {
-        return;
-    }
-    getItem(key: string, type?: string): string | object {
-        return "cacheItem";
-    }
-    removeItem(key: string, type?: string): boolean {
-        return true;
-    }
-    containsKey(key: string, type?: string): boolean {
-        return true;
-    }
-    getKeys(): string[] {
-        return testKeySet;
-    }
-    clear(): void {
-        return;
-    }
-}
 
 const testPkceCodes = {
     challenge: "TestChallenge",
@@ -43,6 +29,16 @@ const testPkceCodes = {
 
 const testNetworkResult = {
     testParam: "testValue"
+};
+
+const defaultTokenRequest: AuthorizationCodeRequest = {
+    redirectUri: `${TEST_URIS.DEFAULT_INSTANCE}/`,
+    code: "thisIsATestCode",
+    scopes: TEST_CONFIG.DEFAULT_SCOPES,
+    codeVerifier: TEST_CONFIG.TEST_VERIFIER,
+    authority: `${Constants.DEFAULT_AUTHORITY}/`,
+    correlationId: RANDOM_TEST_GUID,
+    authenticationScheme: AuthenticationScheme.BEARER
 };
 
 const testKeySet = ["testKey1", "testKey2"];
@@ -63,9 +59,7 @@ const networkInterface = {
 };
 
 describe("SilentHandler.ts Unit Tests", () => {
-
-    let browserStorage: BrowserStorage;
-    let silentHandler: SilentHandler;
+    let browserStorage: BrowserCacheManager;
     let authCodeModule: AuthorizationCodeClient;
     beforeEach(() => {
         const appConfig: Configuration = {
@@ -73,9 +67,9 @@ describe("SilentHandler.ts Unit Tests", () => {
                 clientId: TEST_CONFIG.MSAL_CLIENT_ID
             }
         };
-        const configObj = buildConfiguration(appConfig);
-        const authorityInstance = AuthorityFactory.createInstance(configObj.auth.authority, networkInterface);
-        authCodeModule = new AuthorizationCodeClient({
+        const configObj = buildConfiguration(appConfig, true);
+        const authorityInstance = AuthorityFactory.createInstance(configObj.auth.authority, networkInterface, ProtocolMode.AAD);
+        const authConfig = {
             authOptions: {
                 ...configObj.auth,
                 authority: authorityInstance,
@@ -97,8 +91,14 @@ describe("SilentHandler.ts Unit Tests", () => {
                 generatePkceCodes: async (): Promise<PkceCodes> => {
                     return testPkceCodes;
                 },
+                getPublicKeyThumbprint: async (): Promise<string> => {
+                    return TEST_POP_VALUES.ENCODED_REQ_CNF;
+                },
+                signJwt: async (): Promise<string> => {
+                    return "signedJwt";
+                }
             },
-            storageInterface: new TestStorageInterface(),
+            storageInterface: null,
             networkInterface: {
                 sendGetRequestAsync: async (
                     url: string,
@@ -118,17 +118,15 @@ describe("SilentHandler.ts Unit Tests", () => {
                     level: LogLevel,
                     message: string,
                     containsPii: boolean
-                ): void => {
-                    if (containsPii) {
-                        console.log(`Log level: ${level} Message: ${message}`);
-                    }
-                },
+                ): void => {},
                 piiLoggingEnabled: true,
             },
-        });
+        };
+        authConfig.storageInterface = new TestStorageManager(TEST_CONFIG.MSAL_CLIENT_ID, authConfig.cryptoInterface);
+        authCodeModule = new AuthorizationCodeClient(authConfig);
         const browserCrypto = new CryptoOps();
-        browserStorage = new BrowserStorage(TEST_CONFIG.MSAL_CLIENT_ID, configObj.cache, browserCrypto);
-        silentHandler = new SilentHandler(authCodeModule, browserStorage, DEFAULT_IFRAME_TIMEOUT_MS);
+        const logger = new Logger(authConfig.loggerOptions);
+        browserStorage = new BrowserCacheManager(TEST_CONFIG.MSAL_CLIENT_ID, configObj.cache, browserCrypto, logger);
     });
 
     afterEach(() => {
@@ -138,6 +136,7 @@ describe("SilentHandler.ts Unit Tests", () => {
     describe("Constructor", () => {
 
         it("creates a subclass of InteractionHandler called SilentHandler", () => {
+            const silentHandler = new SilentHandler(authCodeModule, browserStorage, defaultTokenRequest, DEFAULT_IFRAME_TIMEOUT_MS);
             expect(silentHandler instanceof SilentHandler).to.be.true;
             expect(silentHandler instanceof InteractionHandler).to.be.true;
         });
@@ -146,51 +145,28 @@ describe("SilentHandler.ts Unit Tests", () => {
     describe("initiateAuthRequest()", () => {
 
         it("throws error if requestUrl is empty", async () => {
-            const testTokenReq: AuthorizationCodeRequest = {
-                redirectUri: `${TEST_URIS.DEFAULT_INSTANCE}/`,
-                code: "thisIsATestCode",
-                scopes: TEST_CONFIG.DEFAULT_SCOPES,
-                codeVerifier: TEST_CONFIG.TEST_VERIFIER,
-                authority: `${Constants.DEFAULT_AUTHORITY}/`,
-                correlationId: RANDOM_TEST_GUID
-            };
-            await expect(silentHandler.initiateAuthRequest("", testTokenReq)).to.be.rejectedWith(BrowserAuthErrorMessage.emptyNavigateUriError.desc);
-            await expect(silentHandler.initiateAuthRequest("", testTokenReq)).to.be.rejectedWith(BrowserAuthError);
+            const silentHandler = new SilentHandler(authCodeModule, browserStorage, defaultTokenRequest, DEFAULT_IFRAME_TIMEOUT_MS);
+            await expect(silentHandler.initiateAuthRequest("")).to.be.rejectedWith(BrowserAuthErrorMessage.emptyNavigateUriError.desc);
+            await expect(silentHandler.initiateAuthRequest("")).to.be.rejectedWith(BrowserAuthError);
 
-            await expect(silentHandler.initiateAuthRequest(null, testTokenReq)).to.be.rejectedWith(BrowserAuthErrorMessage.emptyNavigateUriError.desc);
-            await expect(silentHandler.initiateAuthRequest(null, testTokenReq)).to.be.rejectedWith(BrowserAuthError);
+            await expect(silentHandler.initiateAuthRequest(null)).to.be.rejectedWith(BrowserAuthErrorMessage.emptyNavigateUriError.desc);
+            await expect(silentHandler.initiateAuthRequest(null)).to.be.rejectedWith(BrowserAuthError);
         });
 
         it("Creates a frame asynchronously when created with default timeout", async () => {
-            const testTokenReq: AuthorizationCodeRequest = {
-                redirectUri: `${TEST_URIS.DEFAULT_INSTANCE}/`,
-                code: "thisIsATestCode",
-                scopes: TEST_CONFIG.DEFAULT_SCOPES,
-                codeVerifier: TEST_CONFIG.TEST_VERIFIER,
-                authority: `${Constants.DEFAULT_AUTHORITY}/`,
-                correlationId: RANDOM_TEST_GUID
-            };
+            const silentHandler = new SilentHandler(authCodeModule, browserStorage, defaultTokenRequest, DEFAULT_IFRAME_TIMEOUT_MS);
             const loadFrameSyncSpy = sinon.spy(silentHandler, <any>"loadFrameSync");
             const loadFrameSpy = sinon.spy(silentHandler, <any>"loadFrame");
-            const authFrame = await silentHandler.initiateAuthRequest(testNavUrl, testTokenReq);
-            expect(loadFrameSyncSpy.calledOnce).to.be.true;
+            const authFrame = await silentHandler.initiateAuthRequest(testNavUrl);
             expect(loadFrameSpy.called).to.be.true;
             expect(authFrame instanceof HTMLIFrameElement).to.be.true;
         }).timeout(DEFAULT_IFRAME_TIMEOUT_MS + 1000);
 
         it("Creates a frame synchronously when created with a timeout of 0", async () => {
-            const testTokenReq: AuthorizationCodeRequest = {
-                redirectUri: `${TEST_URIS.DEFAULT_INSTANCE}/`,
-                code: "thisIsATestCode",
-                scopes: TEST_CONFIG.DEFAULT_SCOPES,
-                codeVerifier: TEST_CONFIG.TEST_VERIFIER,
-                authority: `${Constants.DEFAULT_AUTHORITY}/`,
-                correlationId: RANDOM_TEST_GUID
-            };
-            silentHandler = new SilentHandler(authCodeModule, browserStorage, 0);
+            const silentHandler = new SilentHandler(authCodeModule, browserStorage, defaultTokenRequest, 0);
             const loadFrameSyncSpy = sinon.spy(silentHandler, <any>"loadFrameSync");
             const loadFrameSpy = sinon.spy(silentHandler, <any>"loadFrame");
-            const authFrame = await silentHandler.initiateAuthRequest(testNavUrl, testTokenReq);
+            const authFrame = await silentHandler.initiateAuthRequest(testNavUrl);
             expect(loadFrameSyncSpy.calledOnce).to.be.true;
             expect(loadFrameSpy.called).to.be.false;
             expect(authFrame instanceof HTMLIFrameElement).to.be.true;
@@ -206,6 +182,7 @@ describe("SilentHandler.ts Unit Tests", () => {
                 }
             };
 
+            const silentHandler = new SilentHandler(authCodeModule, browserStorage, defaultTokenRequest, DEFAULT_IFRAME_TIMEOUT_MS);
             // @ts-ignore
             silentHandler.monitorIframeForHash(iframe, 500)
                 .catch(() => {
@@ -225,12 +202,13 @@ describe("SilentHandler.ts Unit Tests", () => {
                 }
             };
 
+            const silentHandler = new SilentHandler(authCodeModule, browserStorage, defaultTokenRequest, DEFAULT_IFRAME_TIMEOUT_MS);
             // @ts-ignore
             silentHandler.monitorIframeForHash(iframe, 2000)
                 .catch(() => {
                     done();
                 });
-                
+
             setTimeout(() => {
                 iframe.contentWindow.location = {
                     href: "http://localhost/#/code=hello",
@@ -260,6 +238,7 @@ describe("SilentHandler.ts Unit Tests", () => {
                 }
             };
 
+            const silentHandler = new SilentHandler(authCodeModule, browserStorage, defaultTokenRequest, DEFAULT_IFRAME_TIMEOUT_MS);
             // @ts-ignore
             silentHandler.monitorIframeForHash(iframe, 1000)
                 .then((hash: string) => {

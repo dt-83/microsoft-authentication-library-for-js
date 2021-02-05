@@ -6,19 +6,23 @@ The Microsoft Authentication Library for JavaScript enables client-side JavaScri
 
 ### Core and wrapper libaries
 
-The [`lib`](https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/lib) folder contains the source code for all of our libraries. You will also find all the details about **installing the libraries**, in their respective README.md.
+The [`lib`](https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/dev/lib) folder contains the source code for all of our libraries. You will also find all the details about **installing the libraries** in their respective README.md.
 
-- [Microsoft Authentication Library for Node.js v1.x (Alpha)](lib/msal-node/): A [Node.js](https://nodejs.org/en/) library that enables authentication and token acquisition with the Microsoft Identity platform in JavaScript applications. Implements the following OAuth 2.0 protocols and is [OpenID-compliant](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-protocols-oidc):
-    - [Authorization Code Grant](https://oauth.net/2/grant-types/authorization-code/) with [PKCE](https://oauth.net/2/pkce/)
-    - [Device Code Grant](https://oauth.net/2/grant-types/device-code/)
-    - [Refresh Token Grant](https://oauth.net/2/grant-types/refresh-token/)
-    - [Client Credential Grant](https://oauth.net/2/grant-types/client-credentials/) (Coming soon)
+- [Microsoft Authentication Library for Node.js v1.x (Beta)](lib/msal-node/): A [Node.js](https://nodejs.org/en/) library that enables authentication and token acquisition with the Microsoft Identity platform in JavaScript applications. Implements the following OAuth 2.0 protocols and is [OpenID-compliant](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-protocols-oidc):
+  - [Authorization Code Grant](https://oauth.net/2/grant-types/authorization-code/) with [PKCE](https://oauth.net/2/pkce/)
+  - [Device Code Grant](https://oauth.net/2/grant-types/device-code/)
+  - [Refresh Token Grant](https://oauth.net/2/grant-types/refresh-token/)
+  - [Client Credential Grant](https://oauth.net/2/grant-types/client-credentials/) (Coming soon)
 
 - [Microsoft Authentication Library for JavaScript v2.x](lib/msal-browser/): A browser-based, framework-agnostic browser library that enables authentication and token acquisition with the Microsoft Identity platform in JavaScript applications. Implements the OAuth 2.0 [Authorization Code Flow with PKCE](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow), and is [OpenID-compliant](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-protocols-oidc).
 
+- [Microsoft Authentication Library for React v1.x (Alpha)](lib/msal-react/): A wrapper of the msal-browser 2.x library for apps using React.
+
+- [Microsoft Authentication Library for Angular v2.x (Alpha)](lib/msal-angular/): A wrapper of the msal-browser 2.x library for apps using Angular framework.
+
 - [Microsoft Authentication Library for JavaScript v1.x](lib/msal-core/): A browser-based, framework-agnostic core library that enables authentication and token acquisition with the Microsoft Identity platform in JavaScript applications. Implements the OAuth 2.0 [Implicit Grant Flow](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-implicit-grant-flow), and is [OpenID-compliant](https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-protocols-oidc).
 
-- [Microsoft Authentication Library for Angular](lib/msal-angular/) :
+- [Microsoft Authentication Library for Angular](https://github.com/AzureAD/microsoft-authentication-library-for-js/tree/msal-angular-v1/lib/msal-angular) :
 A wrapper of the core 1.x library for apps using Angular framework.
 
 - [Microsoft Authentication Library for AngularJS](lib/msal-angularjs/) :
@@ -40,7 +44,7 @@ All of our libraries follow [semantic versioning](https://semver.org). We recomm
 
 ## Roadmap
 
-Please check the [roadmap](https://github.com/AzureAD/microsoft-authentication-library-for-js/wiki#roadmap) to see what we are working on and what we have planned for future releases.
+Please check the [roadmap](https://github.com/AzureAD/microsoft-authentication-library-for-js/blob/dev/roadmap.md) to see what we are working on and what we have planned for future releases.
 
 ## Community Help and Support
 

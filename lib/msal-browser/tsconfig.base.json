@@ -5,7 +5,11 @@
         "declaration": true,
         "experimentalDecorators": true,
         "importHelpers": true,
-        "noImplicitAny": true
+        "noImplicitAny": true,
+        "downlevelIteration": true,
+        "strict": true,
+        "composite": true,
+        "declarationMap": true
     },
     "compileOnSave": false,
     "buildOnSave": false

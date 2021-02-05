@@ -2,8 +2,8 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
+
 import { AuthError } from "./AuthError";
-import { IdToken } from "../account/IdToken";
 import { ScopeSet } from "../request/ScopeSet";
 
 /**
@@ -18,21 +18,21 @@ export const ClientAuthErrorMessage = {
         code: "client_info_empty_error",
         desc: "The client info was empty. Please review the trace to determine the root cause."
     },
-    idTokenParsingError: {
-        code: "id_token_parsing_error",
-        desc: "ID token cannot be parsed. Please review stack trace to determine root cause."
+    tokenParsingError: {
+        code: "token_parsing_error",
+        desc: "Token cannot be parsed. Please review stack trace to determine root cause."
     },
-    nullOrEmptyIdToken: {
-        code: "null_or_empty_id_token",
-        desc: "The idToken is null or empty. Please review the trace to determine the root cause."
+    nullOrEmptyToken: {
+        code: "null_or_empty_token",
+        desc: "The token is null or empty. Please review the trace to determine the root cause."
     },
     endpointResolutionError: {
         code: "endpoints_resolution_error",
         desc: "Error: could not resolve endpoints. Please check network and try again."
     },
-    invalidAuthorityType: {
-        code: "invalid_authority_type",
-        desc: "The given authority is not a valid type of authority supported by MSAL. Please review the trace to determine the root cause."
+    unableToGetOpenidConfigError: {
+        code: "openid_config_error",
+        desc: "Could not retrieve endpoints. Check your authority and verify the .well-known/openid-configuration endpoint returns the required endpoints."
     },
     hashNotDeserialized: {
         code: "hash_not_deserialized",
@@ -50,29 +50,21 @@ export const ClientAuthErrorMessage = {
         code: "state_mismatch",
         desc: "State mismatch error. Please check your network. Continued requests may cause cache overflow."
     },
+    stateNotFoundError: {
+        code: "state_not_found",
+        desc: "State not found"
+    },
     nonceMismatchError: {
         code: "nonce_mismatch",
         desc: "Nonce mismatch error. This may be caused by a race condition in concurrent requests."
     },
-    accountMismatchError: {
-        code: "account_mismatch",
-        desc: "The cached account and account which made the token request do not match."
-    },
-    invalidIdToken: {
-        code: "invalid_id_token",
-        desc: "Invalid ID token format."
+    nonceNotFoundError: {
+        code: "nonce_not_found",
+        desc: "nonce not found"
     },
     noTokensFoundError: {
         code: "no_tokens_found",
         desc: "No tokens were found for the given scopes, and no authorization code was passed to acquireToken. You must retrieve an authorization code before making a call to acquireToken()."
-    },
-    cacheParseError: {
-        code: "cache_parse_error",
-        desc: "Could not parse cache key."
-    },
-    userLoginRequiredError: {
-        code: "user_login_error",
-        desc: "User login is required."
     },
     multipleMatchingTokens: {
         code: "multiple_matching_tokens",
@@ -82,6 +74,10 @@ export const ClientAuthErrorMessage = {
     multipleMatchingAccounts: {
         code: "multiple_matching_accounts",
         desc: "The cache contains multiple accounts satisfying the given parameters. Please pass more info to obtain the correct account"
+    },
+    multipleMatchingAppMetadata: {
+        code: "multiple_matching_appMetadata",
+        desc: "The cache contains multiple appMetadata satisfying the given parameters. Please pass more info to obtain the correct appMetadata"
     },
     tokenRequestCannotBeMade: {
         code: "request_cannot_be_made",
@@ -158,6 +154,18 @@ export const ClientAuthErrorMessage = {
     tokenRefreshRequired: {
         code: "token_refresh_required",
         desc: "Cannot return token from cache because it must be refreshed. This may be due to one of the following reasons: forceRefresh parameter is set to true, claims have been requested, there is no cached access token or it is expired."
+    },
+    userTimeoutReached: {
+        code: "user_timeout_reached",
+        desc: "User defined timeout for device code polling reached",
+    },
+    tokenClaimsRequired: {
+        code: "token_claims_cnf_required_for_signedjwt",
+        desc: "Cannot generate a POP jwt if the token_claims are not populated"
+    },
+    noAuthorizationCodeFromServer: {
+        code: "authorization_code_missing_from_server_response",
+        desc: "Srver response does not contain an authorization code to proceed"
     }
 };
 
@@ -186,27 +194,27 @@ export class ClientAuthError extends AuthError {
      * Creates an error thrown if the client info is empty.
      * @param rawClientInfo
      */
-    static createClientInfoEmptyError(rawClientInfo: string): ClientAuthError {
+    static createClientInfoEmptyError(): ClientAuthError {
         return new ClientAuthError(ClientAuthErrorMessage.clientInfoEmptyError.code,
-            `${ClientAuthErrorMessage.clientInfoEmptyError.desc} Given Object: ${rawClientInfo}`);
+            `${ClientAuthErrorMessage.clientInfoEmptyError.desc}`);
     }
 
     /**
      * Creates an error thrown when the id token extraction errors out.
      * @param err
      */
-    static createIdTokenParsingError(caughtExtractionError: string): ClientAuthError {
-        return new ClientAuthError(ClientAuthErrorMessage.idTokenParsingError.code,
-            `${ClientAuthErrorMessage.idTokenParsingError.desc} Failed with error: ${caughtExtractionError}`);
+    static createTokenParsingError(caughtExtractionError: string): ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.tokenParsingError.code,
+            `${ClientAuthErrorMessage.tokenParsingError.desc} Failed with error: ${caughtExtractionError}`);
     }
 
     /**
      * Creates an error thrown when the id token string is null or empty.
      * @param invalidRawTokenString
      */
-    static createIdTokenNullOrEmptyError(invalidRawTokenString: string): ClientAuthError {
-        return new ClientAuthError(ClientAuthErrorMessage.nullOrEmptyIdToken.code,
-            `${ClientAuthErrorMessage.nullOrEmptyIdToken.desc} Raw ID Token Value: ${invalidRawTokenString}`);
+    static createTokenNullOrEmptyError(invalidRawTokenString: string) : ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.nullOrEmptyToken.code,
+            `${ClientAuthErrorMessage.nullOrEmptyToken.desc} Raw Token Value: ${invalidRawTokenString}`);
     }
 
     /**
@@ -218,17 +226,16 @@ export class ClientAuthError extends AuthError {
     }
 
     /**
-     * Creates an error thrown if authority type is not valid.
-     * @param invalidAuthorityError
+     * Creates an error thrown when the openid-configuration endpoint cannot be reached or does not contain the required data
      */
-    static createInvalidAuthorityTypeError(givenUrl: string): ClientAuthError {
-        return new ClientAuthError(ClientAuthErrorMessage.invalidAuthorityType.code,
-            `${ClientAuthErrorMessage.invalidAuthorityType.desc} Given Url: ${givenUrl}`);
+    static createUnableToGetOpenidConfigError(errDetail: string): ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.unableToGetOpenidConfigError.code,
+            `${ClientAuthErrorMessage.unableToGetOpenidConfigError.desc} Attempted to retrieve endpoints from: ${errDetail}`);
     }
 
     /**
      * Creates an error thrown when the hash cannot be deserialized.
-     * @param invalidAuthorityError
+     * @param hashParamObj
      */
     static createHashNotDeserializedError(hashParamObj: string): ClientAuthError {
         return new ClientAuthError(ClientAuthErrorMessage.hashNotDeserialized.code,
@@ -237,7 +244,7 @@ export class ClientAuthError extends AuthError {
 
     /**
      * Creates an error thrown when the state cannot be parsed.
-     * @param invalidState 
+     * @param invalidState
      */
     static createInvalidStateError(invalidState: string, errorString?: string): ClientAuthError {
         return new ClientAuthError(ClientAuthErrorMessage.invalidStateError.code,
@@ -253,6 +260,15 @@ export class ClientAuthError extends AuthError {
     }
 
     /**
+     * Creates an error thrown when the state is not present
+     * @param missingState
+     */
+    static createStateNotFoundError(missingState: string): ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.stateNotFoundError.code,
+            `${ClientAuthErrorMessage.stateNotFoundError.desc}:  ${missingState}`);
+    }
+
+    /**
      * Creates an error thrown when the nonce does not match.
      */
     static createNonceMismatchError(): ClientAuthError {
@@ -261,20 +277,12 @@ export class ClientAuthError extends AuthError {
     }
 
     /**
-     * Creates an error thrown when the cached account and response account do not match.
+     * Creates an error thrown when the mnonce is not present
+     * @param missingNonce
      */
-    static createAccountMismatchError(): ClientAuthError {
-        return new ClientAuthError(ClientAuthErrorMessage.accountMismatchError.code,
-            ClientAuthErrorMessage.accountMismatchError.desc);
-    }
-
-    /**
-     * Throws error if idToken is not correctly formed
-     * @param idToken
-     */
-    static createInvalidIdTokenError(idToken: IdToken): ClientAuthError {
-        return new ClientAuthError(ClientAuthErrorMessage.invalidIdToken.code,
-            `${ClientAuthErrorMessage.invalidIdToken.desc} Given token: ${JSON.stringify(idToken)}`);
+    static createNonceNotFoundError(missingNonce: string): ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.nonceNotFoundError.code,
+            `${ClientAuthErrorMessage.nonceNotFoundError.desc}:  ${missingNonce}`);
     }
 
     /**
@@ -285,24 +293,7 @@ export class ClientAuthError extends AuthError {
     }
 
     /**
-     * Creates an error in cache parsing.
-     */
-    static createCacheParseError(cacheKey: string): ClientAuthError {
-        return new ClientAuthError(ClientAuthErrorMessage.cacheParseError.code,
-            `${ClientAuthErrorMessage.cacheParseError.desc} Cache key: ${cacheKey}`);
-    }
-
-    /**
-     * Throws error when renewing token without login.
-     */
-    static createUserLoginRequiredError(): ClientAuthError {
-        return new ClientAuthError(ClientAuthErrorMessage.userLoginRequiredError.code,
-            ClientAuthErrorMessage.userLoginRequiredError.desc);
-    }
-
-    /**
-     * Throws error when multiple tokens are in cache for the given scope.
-     * @param scope
+     * Throws error when multiple tokens are in cache.
      */
     static createMultipleMatchingTokensInCacheError(): ClientAuthError {
         return new ClientAuthError(ClientAuthErrorMessage.multipleMatchingTokens.code,
@@ -310,12 +301,19 @@ export class ClientAuthError extends AuthError {
     }
 
     /**
-     * Throws error when multiple tokens are in cache for the given scope.
-     * @param scope
+     * Throws error when multiple accounts are in cache for the given params
      */
     static createMultipleMatchingAccountsInCacheError(): ClientAuthError {
         return new ClientAuthError(ClientAuthErrorMessage.multipleMatchingAccounts.code,
             ClientAuthErrorMessage.multipleMatchingAccounts.desc);
+    }
+
+    /**
+     * Throws error when multiple appMetada are in cache for the given clientId.
+     */
+    static createMultipleMatchingAppMetadataInCacheError(): ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.multipleMatchingAppMetadata.code,
+            ClientAuthErrorMessage.multipleMatchingAppMetadata.desc);
     }
 
     /**
@@ -408,7 +406,7 @@ export class ClientAuthError extends AuthError {
 
     /**
      * Throws error if crypto object not found.
-     * @param operationName 
+     * @param operationName
      */
     static createNoCryptoObjectError(operationName: string): ClientAuthError {
         return new ClientAuthError(ClientAuthErrorMessage.noCryptoObj.code, `${ClientAuthErrorMessage.noCryptoObj.desc}${operationName}`);
@@ -454,5 +452,26 @@ export class ClientAuthError extends AuthError {
      */
     static createRefreshRequiredError(): ClientAuthError {
         return new ClientAuthError(ClientAuthErrorMessage.tokenRefreshRequired.code, ClientAuthErrorMessage.tokenRefreshRequired.desc);
+    }
+
+    /**
+     * Throws error if the user defined timeout is reached.
+     */
+    static createUserTimeoutReachedError(): ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.userTimeoutReached.code, ClientAuthErrorMessage.userTimeoutReached.desc);
+    }
+
+    /*
+     * Throws error if token claims are not populated for a signed jwt generation
+     */
+    static createTokenClaimsRequiredError(): ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.tokenClaimsRequired.code, ClientAuthErrorMessage.tokenClaimsRequired.desc);
+    }
+
+    /**
+     * Throws error when the authorization code is missing from the server response
+     */
+    static createNoAuthCodeInServerResponseError(): ClientAuthError {
+        return new ClientAuthError(ClientAuthErrorMessage.noAuthorizationCodeFromServer.code, ClientAuthErrorMessage.noAuthorizationCodeFromServer.desc);
     }
 }

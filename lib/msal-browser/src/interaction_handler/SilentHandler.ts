@@ -2,18 +2,20 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-import { UrlString, StringUtils, AuthorizationCodeRequest, AuthorizationCodeClient, RequestThumbprint, Constants } from "@azure/msal-common";
+
+import { UrlString, StringUtils, AuthorizationCodeRequest, AuthorizationCodeClient, Constants } from "@azure/msal-common";
 import { InteractionHandler } from "./InteractionHandler";
 import { BrowserConstants } from "../utils/BrowserConstants";
 import { BrowserAuthError } from "../error/BrowserAuthError";
-import { BrowserStorage } from "../cache/BrowserStorage";
+import { BrowserCacheManager } from "../cache/BrowserCacheManager";
+import { DEFAULT_IFRAME_TIMEOUT_MS } from "../config/Configuration";
 
 export class SilentHandler extends InteractionHandler {
 
-    private loadFrameTimeout: number;
-    constructor(authCodeModule: AuthorizationCodeClient, storageImpl: BrowserStorage, configuredLoadFrameTimeout: number) {
-        super(authCodeModule, storageImpl);
-        this.loadFrameTimeout = configuredLoadFrameTimeout;
+    private navigateFrameWait: number;
+    constructor(authCodeModule: AuthorizationCodeClient, storageImpl: BrowserCacheManager, authCodeRequest: AuthorizationCodeRequest, navigateFrameWait: number) {
+        super(authCodeModule, storageImpl, authCodeRequest);
+        this.navigateFrameWait = navigateFrameWait;
     }
 
     /**
@@ -21,16 +23,14 @@ export class SilentHandler extends InteractionHandler {
      * @param urlNavigate 
      * @param userRequestScopes
      */
-    async initiateAuthRequest(requestUrl: string, authCodeRequest: AuthorizationCodeRequest): Promise<HTMLIFrameElement> {
+    async initiateAuthRequest(requestUrl: string): Promise<HTMLIFrameElement> {
         if (StringUtils.isEmpty(requestUrl)) {
             // Throw error if request URL is empty.
             this.authModule.logger.info("Navigate url is empty");
             throw BrowserAuthError.createEmptyNavigationUriError();
         }
-        // Save auth code request
-        this.authCodeRequest = authCodeRequest;
 
-        return this.loadFrameTimeout ? await this.loadFrame(requestUrl) : this.loadFrameSync(requestUrl);
+        return this.navigateFrameWait ? await this.loadFrame(requestUrl) : this.loadFrameSync(requestUrl);
     }
 
     /**
@@ -40,6 +40,10 @@ export class SilentHandler extends InteractionHandler {
      */
     monitorIframeForHash(iframe: HTMLIFrameElement, timeout: number): Promise<string> {
         return new Promise((resolve, reject) => {
+            if (timeout < DEFAULT_IFRAME_TIMEOUT_MS) {
+                this.authModule.logger.warning(`system.loadFrameTimeout or system.iframeHashTimeout set to lower (${timeout}ms) than the default (${DEFAULT_IFRAME_TIMEOUT_MS}ms). This may result in timeouts.`);
+            }
+
             /*
              * Polling for iframes can be purely timing based,
              * since we don't need to account for interaction.
@@ -51,25 +55,26 @@ export class SilentHandler extends InteractionHandler {
                 if (window.performance.now() > timeoutMark) {
                     this.removeHiddenIframe(iframe);
                     clearInterval(intervalId);
-                    reject(BrowserAuthError.createMonitorWindowTimeoutError());
+                    reject(BrowserAuthError.createMonitorIframeTimeoutError());
                     return;
                 }
 
-                let href: string;
+                let href: string = Constants.EMPTY_STRING;
+                const contentWindow = iframe.contentWindow;
                 try {
                     /*
                      * Will throw if cross origin,
                      * which should be caught and ignored
                      * since we need the interval to keep running while on STS UI.
                      */
-                    href = iframe.contentWindow.location.href;
+                    href = contentWindow ? contentWindow.location.href : Constants.EMPTY_STRING;
                 } catch (e) {}
 
                 if (StringUtils.isEmpty(href)) {
                     return;
                 }
 
-                const contentHash = iframe.contentWindow.location.hash;
+                const contentHash = contentWindow ? contentWindow.location.hash: Constants.EMPTY_STRING;
                 if (UrlString.hashContainsKnownProperties(contentHash)) {
                     // Success case
                     this.removeHiddenIframe(iframe);
@@ -93,16 +98,18 @@ export class SilentHandler extends InteractionHandler {
          */
 
         return new Promise((resolve, reject) => {
-            setTimeout(() => {
-                const frameHandle = this.loadFrameSync(urlNavigate);
+            const frameHandle = this.createHiddenIframe();
 
+            setTimeout(() => {
                 if (!frameHandle) {
                     reject("Unable to load iframe");
                     return;
                 }
 
+                frameHandle.src = urlNavigate;
+
                 resolve(frameHandle);
-            }, this.loadFrameTimeout);
+            }, this.navigateFrameWait);
         });
     }
 

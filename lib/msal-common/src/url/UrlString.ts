@@ -2,12 +2,13 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
+
 import { ServerAuthorizationCodeResponse } from "../response/ServerAuthorizationCodeResponse";
 import { ClientConfigurationError } from "../error/ClientConfigurationError";
 import { ClientAuthError } from "../error/ClientAuthError";
 import { StringUtils } from "../utils/StringUtils";
 import { IUri } from "./IUri";
-import { AADAuthorityConstants } from "../utils/Constants";
+import { AADAuthorityConstants, Constants } from "../utils/Constants";
 
 /**
  * Url object class which can perform various transformations on url strings.
@@ -39,10 +40,16 @@ export class UrlString {
     static canonicalizeUri(url: string): string {
         if (url) {
             url = url.toLowerCase();
-        }
 
-        if (url && !StringUtils.endsWith(url, "/")) {
-            url += "/";
+            if (StringUtils.endsWith(url, "?")) {
+                url = url.slice(0, -1);
+            } else if (StringUtils.endsWith(url, "?/")) {
+                url = url.slice(0, -2);
+            }
+
+            if (!StringUtils.endsWith(url, "/")) {
+                url += "/";
+            }
         }
 
         return url;
@@ -61,7 +68,7 @@ export class UrlString {
         }
 
         // Throw error if URI or path segments are not parseable.
-        if (!components.HostNameAndPort || !components.PathSegments || components.PathSegments.length < 1) {
+        if (!components.HostNameAndPort || !components.PathSegments) {
             throw ClientConfigurationError.createUrlParseError(`Given url string: ${this.urlString}`);
         }
 
@@ -131,12 +138,17 @@ export class UrlString {
         const urlComponents = {
             Protocol: match[1],
             HostNameAndPort: match[4],
-            AbsolutePath: match[5]
+            AbsolutePath: match[5],
+            QueryString: match[7]
         } as IUri;
 
         let pathSegments = urlComponents.AbsolutePath.split("/");
         pathSegments = pathSegments.filter((val) => val && val.length > 0); // remove empty elements
         urlComponents.PathSegments = pathSegments;
+
+        if (!StringUtils.isEmpty(urlComponents.QueryString) && urlComponents.QueryString.endsWith("/")) {
+            urlComponents.QueryString = urlComponents.QueryString.substring(0, urlComponents.QueryString.length-1);
+        }
         return urlComponents;
     }
 
@@ -150,6 +162,17 @@ export class UrlString {
         }
 
         return match[2];
+    }
+
+    static getAbsoluteUrl(relativeUrl: string, baseUrl: string): string {
+        if (relativeUrl[0] === Constants.FORWARD_SLASH) {
+            const url = new UrlString(baseUrl);
+            const baseComponents = url.getUrlComponents();
+
+            return baseComponents.Protocol + "//" + baseComponents.HostNameAndPort + relativeUrl;
+        }
+        
+        return relativeUrl;
     }
     
     /**

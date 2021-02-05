@@ -1,8 +1,55 @@
 # Change Log - @azure/msal-angular
 
-This log was last generated on Tue, 25 Aug 2020 00:40:45 GMT and should not be manually modified.
+This log was last generated on Tue, 02 Feb 2021 01:56:47 GMT and should not be manually modified.
 
 <!-- Start content -->
+
+## 2.0.0-alpha.4
+
+Tue, 02 Feb 2021 01:56:47 GMT
+
+### Changes
+
+- Invoke interaction if MSAL Interceptor resolves with null access token, mitigates B2C service not supporting RTs for multiple resources (janutter@microsoft.com)
+- Pass SKU and version to msal-browser (#2845) (joarroyo@microsoft.com)
+- Add redirect component, get interactionStatus from msal-browser, add inProgress$, and sample updates (#2885) (joarroyo@microsoft.com)
+- Get package version from version.json (#2915) (thomas.norling@microsoft.com)
+- Add version detection to msal guard for canLoad interface (#2948) (joarroyo@microsoft.com)
+
+## 2.0.0-alpha.3
+
+Tue, 12 Jan 2021 00:51:26 GMT
+
+### Changes
+
+- Make scopes optional for msal-guard config (#2829) (joarroyo@microsoft.com)
+- Interceptor, guard, and samples to use active account (#2784) (joarroyo@microsoft.com)
+- Msal guard supports angular routes for login failure (#2803) (joarroyo@microsoft.com)
+- Add additional interfaces to msal-guard (#2759) (joarroyo@microsoft.com)
+
+## 2.0.0-alpha.1
+
+Mon, 07 Dec 2020 23:02:52 GMT
+
+### Changes
+
+- MSAL Angular v2 alpha.1 changes (janutter@microsoft.com)
+
+## 2.0.0-alpha.0
+
+Thu, 12 Nov 2020 00:45:30 GMT
+
+### Changes
+
+- Add msal-angular-v2-alpha-0 (#2463) (joarroyo@microsoft.com)
+
+## 1.1.2
+
+Wed, 11 Nov 2020 23:33:20 GMT
+
+### Patches
+
+- Pass generic to ModuleWithProviders for MsalModule v1, set supported Angular versions to 6-9 (#2577) (janutter@microsoft.com)
 
 ## 1.1.0
 

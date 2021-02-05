@@ -8,9 +8,9 @@ import { Observable, from, EMPTY } from 'rxjs';
 import { switchMap, catchError } from 'rxjs/operators';
 import { MsalService } from './msal.service';
 import { Minimatch } from "minimatch";
-import { AuthenticationResult } from "@azure/msal-browser";
+import { AuthenticationResult, InteractionType } from "@azure/msal-browser";
 import { Injectable, Inject } from '@angular/core';
-import { MSAL_INTERCEPTOR_CONFIG, InteractionType } from './constants';
+import { MSAL_INTERCEPTOR_CONFIG } from './constants';
 import { MsalInterceptorConfig } from './msal.interceptor.config';
 
 @Injectable()
@@ -22,7 +22,7 @@ export class MsalInterceptor implements HttpInterceptor {
 
     intercept(req: HttpRequest<any>, next: HttpHandler): Observable<HttpEvent<any>> {
         const scopes = this.getScopesForEndpoint(req.url);
-        const account = this.authService.getAllAccounts()[0];
+        const account = this.authService.instance.getActiveAccount() || this.authService.instance.getAllAccounts()[0];
 
         if (!scopes || scopes.length === 0) {
             return next.handle(req);
@@ -32,7 +32,7 @@ export class MsalInterceptor implements HttpInterceptor {
         return this.authService.acquireTokenSilent({scopes, account})
             .pipe(
                 catchError(() => {
-                    if (this.msalInterceptorConfig.interactionType === InteractionType.POPUP) {
+                    if (this.msalInterceptorConfig.interactionType === InteractionType.Popup) {
                         return this.authService.acquireTokenPopup({...this.msalInterceptorConfig.authRequest, scopes});
                     }
                     const redirectStartPage = window.location.href;

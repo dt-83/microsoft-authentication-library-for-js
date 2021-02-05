@@ -13,11 +13,19 @@
         "allowUnusedLabels": false,
         "noImplicitReturns": true,
         "esModuleInterop": true,
-        "resolveJsonModule": true
+        "resolveJsonModule": true,
+        "strict": true,
+        "strictNullChecks": true,
+        "strictFunctionTypes": true,
+        "strictPropertyInitialization": false,
+        "noImplicitThis": true,
+        "noImplicitAny": true,
+        "alwaysStrict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": false,
+        "noFallthroughCasesInSwitch": true
     },
-    "include": [
-        "src/**/*"
-    ],
+    "include": ["src", "src/**/*.json", "test"],
     "exclude": [
         "node_modules"
     ],
@@ -26,3 +34,4 @@
         "mocha"
     ]
 }
+

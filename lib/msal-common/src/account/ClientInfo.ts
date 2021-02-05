@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
+
 import { ClientAuthError } from "../error/ClientAuthError";
 import { StringUtils } from "../utils/StringUtils";
 import { ICrypto } from "../crypto/ICrypto";
@@ -16,12 +17,12 @@ export type ClientInfo = {
 
 /**
  * Function to build a client info object
- * @param rawClientInfo 
- * @param crypto 
+ * @param rawClientInfo
+ * @param crypto
  */
 export function buildClientInfo(rawClientInfo: string, crypto: ICrypto): ClientInfo {
     if (StringUtils.isEmpty(rawClientInfo)) {
-        throw ClientAuthError.createClientInfoEmptyError(rawClientInfo);
+        throw ClientAuthError.createClientInfoEmptyError();
     }
 
     try {

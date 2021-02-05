@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
+
 import { INetworkModule, NetworkRequestOptions, NetworkResponse } from "@azure/msal-common";
 import { HTTP_REQUEST_TYPE } from "../utils/BrowserConstants";
 
@@ -57,8 +58,9 @@ export class FetchClient implements INetworkModule {
         if (!(options && options.headers)) {
             return headers;
         }
-        Object.keys(options.headers).forEach((key) => {
-            headers.append(key, options.headers[key]);
+        const optionsHeaders = options.headers;
+        Object.keys(optionsHeaders).forEach((key) => {
+            headers.append(key, optionsHeaders[key]);
         });
         return headers;
     }

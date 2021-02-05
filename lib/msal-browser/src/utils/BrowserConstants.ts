@@ -3,31 +3,45 @@
  * Licensed under the MIT License.
  */
 
-import { AuthorizationUrlRequest, Constants } from "@azure/msal-common";
+import { Constants } from "@azure/msal-common";
+import { PopupRequest } from "../request/PopupRequest";
+import { RedirectRequest } from "../request/RedirectRequest";
 
 /**
  * Constants
  */
 export const BrowserConstants = {
-    // Local storage constant string
-    CACHE_LOCATION_LOCAL: "localStorage",
-    // Session storage constant string
-    CACHE_LOCATION_SESSION: "sessionStorage",
-    // Interaction status key (only used for browsers)
-    INTERACTION_STATUS_KEY: "interaction.status",
-    // Interaction in progress cache value
+    /**
+     * Interaction in progress cache value
+     */
     INTERACTION_IN_PROGRESS_VALUE: "interaction_in_progress",
-    // Invalid grant error code
+    /**
+     * Invalid grant error code
+     */
     INVALID_GRANT_ERROR: "invalid_grant",
-    // Default popup window width
+    /**
+     * Default popup window width
+     */
     POPUP_WIDTH: 483,
-    // Default popup window height
+    /**
+     * Default popup window height
+     */
     POPUP_HEIGHT: 600,
-    // Default popup monitor poll interval in milliseconds
+    /**
+     * Default popup monitor poll interval in milliseconds
+     */
     POLL_INTERVAL_MS: 50,
-    // msal-browser SKU
+    /**
+     * Msal-browser SKU
+     */
     MSAL_SKU: "msal.js.browser",
 };
+
+export enum BrowserCacheLocation {
+    LocalStorage = "localStorage",
+    SessionStorage = "sessionStorage",
+    MemoryStorage = "memoryStorage"
+}
 
 /**
  * HTTP Request types supported by MSAL.
@@ -50,7 +64,8 @@ export enum TemporaryCacheKeys {
     RENEW_STATUS = "token.renew.status",
     URL_HASH = "urlHash",
     REQUEST_PARAMS = "request.params",
-    SCOPES = "scopes"
+    SCOPES = "scopes",
+    INTERACTION_STATUS_KEY = "interaction.status"
 }
 
 /**
@@ -65,18 +80,65 @@ export enum ApiId {
     ssoSilent = 863,
     acquireTokenSilent_authCode = 864,
     handleRedirectPromise = 865,
-    acquireTokenSilent_silentFlow = 61
+    acquireTokenSilent_silentFlow = 61,
+    logout = 961
 }
 
 /*
  * Interaction type of the API - used for state and telemetry
  */
 export enum InteractionType {
-    REDIRECT = "redirect",
-    POPUP = "popup",
-    SILENT = "silent"
+    Redirect = "redirect",
+    Popup = "popup",
+    Silent = "silent"
 }
 
-export const DEFAULT_REQUEST: AuthorizationUrlRequest = {
+/**
+ * Types of interaction currently in progress.
+ * Used in events in wrapper libraries to invoke functions when certain interaction is in progress or all interactions are complete.
+ */
+export enum InteractionStatus {
+    /**
+     * Initial status before interaction occurs
+     */
+    Startup = "startup",
+    /**
+     * Status set when all login calls occuring
+     */
+    Login = "login",
+    /**
+     * Status set when logout call occuring
+     */ 
+    Logout = "logout",
+    /**
+     * Status set for acquireToken calls
+     */
+    AcquireToken = "acquireToken",
+    /**
+     * Status set for ssoSilent calls
+     */
+    SsoSilent = "ssoSilent",
+    /**
+     * Status set when handleRedirect in progress
+     */
+    HandleRedirect = "handleRedirect",
+    /**
+     * Status set when interaction is complete
+     */
+    None = "none"
+}
+
+export const DEFAULT_REQUEST: RedirectRequest|PopupRequest = {
     scopes: [Constants.OPENID_SCOPE, Constants.PROFILE_SCOPE]
 };
+
+/**
+ * JWK Key Format string (Type MUST be defined for window crypto APIs)
+ */
+export const KEY_FORMAT_JWK = "jwk";
+
+// Supported wrapper SKUs
+export enum WrapperSKU {
+    React = "@azure/msal-react",
+    Angular = "@azure/msal-angular"
+}

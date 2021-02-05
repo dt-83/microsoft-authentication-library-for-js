@@ -1,3 +1,13 @@
+/*
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License.
+ */
+
+/**
+ * @packageDocumentation
+ * @module @azure/msal
+ */
+
 export { UserAgentApplication, authResponseCallback, errorReceivedCallback, tokenReceivedCallback } from "./UserAgentApplication";
 export { Logger } from "./Logger";
 export { LogLevel } from "./Logger";

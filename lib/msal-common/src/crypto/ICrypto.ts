@@ -3,6 +3,9 @@
  * Licensed under the MIT License.
  */
 
+import { AuthError } from "../error/AuthError";
+import { SignedHttpRequest } from "./SignedHttpRequest";
+
 /**
  * The PkceCodes type describes the structure
  * of objects that contain PKCE code
@@ -35,4 +38,42 @@ export interface ICrypto {
      * Generate PKCE codes for OAuth. See RFC here: https://tools.ietf.org/html/rfc7636
      */
     generatePkceCodes(): Promise<PkceCodes>;
+    /**
+     * Generates an JWK RSA S256 Thumbprint
+     * @param resourceRequestMethod 
+     * @param resourceRequestUri 
+     */
+    getPublicKeyThumbprint(resourceRequestMethod: string, resourceRequestUri: string): Promise<string>;
+    /** 
+     * Returns a signed proof-of-possession token with a given acces token that contains a cnf claim with the required kid.
+     * @param accessToken 
+     */
+    signJwt(payload: SignedHttpRequest, kid: string): Promise<string>;
 }
+
+export const DEFAULT_CRYPTO_IMPLEMENTATION: ICrypto = {
+    createNewGuid: (): string => {
+        const notImplErr = "Crypto interface - createNewGuid() has not been implemented";
+        throw AuthError.createUnexpectedError(notImplErr);
+    },
+    base64Decode: (): string => {
+        const notImplErr = "Crypto interface - base64Decode() has not been implemented";
+        throw AuthError.createUnexpectedError(notImplErr);
+    },
+    base64Encode: (): string => {
+        const notImplErr = "Crypto interface - base64Encode() has not been implemented";
+        throw AuthError.createUnexpectedError(notImplErr);
+    },
+    async generatePkceCodes(): Promise<PkceCodes> {
+        const notImplErr = "Crypto interface - generatePkceCodes() has not been implemented";
+        throw AuthError.createUnexpectedError(notImplErr);
+    },
+    async getPublicKeyThumbprint(): Promise<string> {
+        const notImplErr = "Crypto interface - getPublicKeyThumbprint() has not been implemented";
+        throw AuthError.createUnexpectedError(notImplErr);
+    },
+    async signJwt(): Promise<string> {
+        const notImplErr = "Crypto interface - signJwt() has not been implemented";
+        throw AuthError.createUnexpectedError(notImplErr);
+    }
+};

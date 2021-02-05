@@ -1,34 +1,48 @@
-import { Injectable, ModuleWithProviders, NgModule } from "@angular/core";
+/*
+ * Copyright (c) Microsoft Corporation. All rights reserved.
+ * Licensed under the MIT License.
+ */
+
+import { ModuleWithProviders, NgModule } from "@angular/core";
 import { CommonModule } from "@angular/common";
+import { IPublicClientApplication } from "@azure/msal-browser";
+import { MsalGuardConfiguration } from "./msal.guard.config";
+import { MsalInterceptorConfiguration } from "./msal.interceptor.config";
+import { MsalGuard } from "./msal.guard";
+import { MsalBroadcastService } from "./msal.broadcast.service";
 import { MsalService } from "./msal.service";
-import { MsalGuard } from "./msal-guard.service";
-import { BroadcastService } from "./broadcast.service";
-import { Configuration } from "msal";
-import { MsalAngularConfiguration, defaultMsalAngularConfiguration } from "./msal-angular.configuration";
-import { MSAL_CONFIG, MSAL_CONFIG_ANGULAR } from "./constants";
+import { MSAL_INSTANCE , MSAL_GUARD_CONFIG, MSAL_INTERCEPTOR_CONFIG } from "./constants";
 
 @NgModule({
-    imports: [CommonModule],
-    declarations: [
-
+    declarations: [],
+    imports: [
+        CommonModule
     ],
-    providers: [MsalGuard, BroadcastService],
+    providers: [
+        MsalGuard,
+        MsalBroadcastService
+    ]
 })
 export class MsalModule {
     static forRoot(
-        config: Configuration,
-        angularConfig: MsalAngularConfiguration = defaultMsalAngularConfiguration
-    ): ModuleWithProviders {
+        msalInstance: IPublicClientApplication,
+        guardConfig: MsalGuardConfiguration,
+        interceptorConfig: MsalInterceptorConfiguration
+    ): ModuleWithProviders<MsalModule> {
         return {
             ngModule: MsalModule,
             providers: [
                 {
-                    provide: MSAL_CONFIG,
-                    useValue: config
+                    provide: MSAL_INSTANCE,
+                    useValue: msalInstance
                 },
                 {
-                    provide: MSAL_CONFIG_ANGULAR,
-                    useValue: angularConfig
+                    provide: MSAL_GUARD_CONFIG,
+                    useValue: guardConfig
+                },
+                {
+                    provide: MSAL_INTERCEPTOR_CONFIG,
+                    useValue: interceptorConfig
                 },
                 MsalService
             ]
@@ -36,4 +50,3 @@ export class MsalModule {
     }
 
 }
-

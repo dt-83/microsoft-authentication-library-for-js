@@ -3,9 +3,9 @@
  * Licensed under the MIT License.
  */
 
-import { StringUtils } from "./../utils/StringUtils";
-import { ClientConfigurationError } from "./../error/ClientConfigurationError";
-import { PromptValue, CodeChallengeMethodValues} from "./../utils/Constants";
+import { StringUtils } from "../utils/StringUtils";
+import { ClientConfigurationError } from "../error/ClientConfigurationError";
+import { PromptValue, CodeChallengeMethodValues} from "../utils/Constants";
 import { StringDict } from "../utils/MsalTypes";
 
 /**
@@ -82,7 +82,7 @@ export class RequestValidator {
      */
     static sanitizeEQParams(eQParams: StringDict, queryParams: Map<string, string>) : StringDict {
         if (!eQParams) {
-            return null;
+            return {};
         }
 
         // Remove any query parameters already included in SSO params

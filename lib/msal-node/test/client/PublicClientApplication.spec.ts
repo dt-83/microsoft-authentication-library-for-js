@@ -1,19 +1,25 @@
 import { PublicClientApplication } from './../../src/client/PublicClientApplication';
 import { AuthorizationCodeRequest, Configuration } from './../../src/index';
 import { TEST_CONSTANTS } from '../utils/TestConstants';
+import { version, name } from '../../package.json';
 import { mocked } from 'ts-jest/utils';
 import {
     Authority,
     AuthorityFactory,
     AuthorizationCodeClient,
-    AuthorizationUrlRequest,
-    Constants,
     DeviceCodeClient,
-    DeviceCodeRequest,
     RefreshTokenClient,
-    RefreshTokenRequest,
     ClientConfiguration,
+    ProtocolMode,
+    Logger,
+    LogLevel
 } from '@azure/msal-common';
+
+import { AuthorizationUrlRequest } from "../../src/request/AuthorizationUrlRequest";
+import { DeviceCodeRequest } from "../../src/request/DeviceCodeRequest";
+import { RefreshTokenRequest } from "../../src/request/RefreshTokenRequest";
+import { Storage } from "../../src/cache/Storage";
+import { HttpClient } from "../../src/network/HttpClient";
 
 jest.mock('@azure/msal-common');
 
@@ -40,8 +46,6 @@ describe('PublicClientApplication', () => {
         authOptions: {
             clientId: TEST_CONSTANTS.CLIENT_ID,
             authority: authority,
-            knownAuthorities: [],
-            cloudDiscoveryMetadata: "",
             clientCapabilities: []
         },
     };
@@ -67,7 +71,7 @@ describe('PublicClientApplication', () => {
             scopes: TEST_CONSTANTS.DEFAULT_GRAPH_SCOPE,
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        mocked(AuthorityFactory.createDiscoveredInstance).mockReturnValue(Promise.resolve(authority));
 
         const authApp = new PublicClientApplication(appConfig);
         await authApp.acquireTokenByDeviceCode(request);
@@ -84,7 +88,7 @@ describe('PublicClientApplication', () => {
             code: TEST_CONSTANTS.AUTHORIZATION_CODE,
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        mocked(AuthorityFactory.createDiscoveredInstance).mockReturnValue(Promise.resolve(authority));
 
         const authApp = new PublicClientApplication(appConfig);
         await authApp.acquireTokenByCode(request);
@@ -100,7 +104,7 @@ describe('PublicClientApplication', () => {
             refreshToken: TEST_CONSTANTS.REFRESH_TOKEN,
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        mocked(AuthorityFactory.createDiscoveredInstance).mockReturnValue(Promise.resolve(authority));
 
         const authApp = new PublicClientApplication(appConfig);
         await authApp.acquireTokenByRefreshToken(request);
@@ -116,7 +120,7 @@ describe('PublicClientApplication', () => {
             redirectUri: TEST_CONSTANTS.REDIRECT_URI,
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        mocked(AuthorityFactory.createDiscoveredInstance).mockReturnValue(Promise.resolve(authority));
 
         const authApp = new PublicClientApplication(appConfig);
         await authApp.getAuthCodeUrl(request);
@@ -139,18 +143,22 @@ describe('PublicClientApplication', () => {
             refreshToken: TEST_CONSTANTS.REFRESH_TOKEN,
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        const authorityMock = mocked(AuthorityFactory.createDiscoveredInstance);
+        authorityMock.mockResolvedValue(authority);
 
         const authApp = new PublicClientApplication(config);
         await authApp.acquireTokenByRefreshToken(request);
-        expect(AuthorityFactory.createInstance).toHaveBeenCalledWith(
-            Constants.DEFAULT_AUTHORITY,
-            {}
-        );
+        expect(authorityMock.mock.calls[0][0]).toBe(TEST_CONSTANTS.DEFAULT_AUTHORITY);
+        expect(authorityMock.mock.calls[0][1]).toBeInstanceOf(HttpClient);
+        expect(authorityMock.mock.calls[0][2]).toBeInstanceOf(Storage);
+        expect(authorityMock.mock.calls[0][3]).toStrictEqual({
+            protocolMode: ProtocolMode.AAD,
+            knownAuthorities: [],
+            cloudDiscoveryMetadata: "",
+            authorityMetadata: ""
+        });
         expect(RefreshTokenClient).toHaveBeenCalledTimes(1);
-        expect(RefreshTokenClient).toHaveBeenCalledWith(
-            expect.objectContaining(expectedConfig)
-        );
+        expect(RefreshTokenClient).toHaveBeenCalledWith(expect.objectContaining(expectedConfig));
     });
 
     test('authority overridden by acquire token request parameters', async () => {
@@ -161,17 +169,41 @@ describe('PublicClientApplication', () => {
             authority: TEST_CONSTANTS.ALTERNATE_AUTHORITY,
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        const authorityMock = mocked(AuthorityFactory.createDiscoveredInstance);
+        authorityMock.mockResolvedValue(authority);
 
         const authApp = new PublicClientApplication(appConfig);
         await authApp.acquireTokenByRefreshToken(request);
-        expect(AuthorityFactory.createInstance).toHaveBeenCalledWith(
-            TEST_CONSTANTS.ALTERNATE_AUTHORITY,
-            {}
-        );
+        expect(authorityMock.mock.calls[0][0]).toBe(TEST_CONSTANTS.ALTERNATE_AUTHORITY);
+        expect(authorityMock.mock.calls[0][1]).toBeInstanceOf(HttpClient);
+        expect(authorityMock.mock.calls[0][2]).toBeInstanceOf(Storage);
+        expect(authorityMock.mock.calls[0][3]).toStrictEqual({
+            protocolMode: ProtocolMode.AAD,
+            knownAuthorities: [],
+            cloudDiscoveryMetadata: "",
+            authorityMetadata: ""
+        });
         expect(RefreshTokenClient).toHaveBeenCalledTimes(1);
-        expect(RefreshTokenClient).toHaveBeenCalledWith(
-            expect.objectContaining(expectedConfig)
-        );
+        expect(RefreshTokenClient).toHaveBeenCalledWith(expect.objectContaining(expectedConfig));
+    });
+
+    test("getLogger and setLogger", async () => {
+        const authApp = new PublicClientApplication(appConfig);
+        const logger = new Logger({
+            loggerCallback: (level, message, containsPii) => {
+                expect(message).toContain("Message");
+                expect(message).toContain(LogLevel.Info);
+
+                expect(level).toEqual(LogLevel.Info);
+                expect(containsPii).toEqual(false);
+            },
+            piiLoggingEnabled: false
+        }, name, version);
+
+        authApp.setLogger(logger);
+
+        expect(authApp.getLogger()).toEqual(logger);
+
+        authApp.getLogger().info("Message");
     });
 });

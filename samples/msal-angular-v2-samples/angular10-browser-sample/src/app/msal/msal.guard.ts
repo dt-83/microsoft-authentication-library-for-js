@@ -2,8 +2,9 @@ import { CanActivate, ActivatedRouteSnapshot, RouterStateSnapshot } from '@angul
 import { MsalService } from './msal.service';
 import { Injectable, Inject } from '@angular/core';
 import { Location } from "@angular/common";
+import { AuthenticationResult, InteractionType} from "@azure/msal-browser";
 import { MsalGuardConfiguration } from './msal.guard.config';
-import { InteractionType, MSAL_GUARD_CONFIG } from './constants';
+import { MSAL_GUARD_CONFIG } from './constants';
 import { concatMap, catchError, map } from 'rxjs/operators';
 import { Observable, of } from 'rxjs';
 
@@ -39,19 +40,22 @@ export class MsalGuard implements CanActivate {
     }
 
     private loginInteractively(url: string): Observable<boolean> {
-        if (this.msalGuardConfig.interactionType === InteractionType.POPUP) {
+        if (this.msalGuardConfig.interactionType === InteractionType.Popup) {
             return this.authService.loginPopup({...this.msalGuardConfig.authRequest})
                 .pipe(
-                    map(() => true),
+                    map((response: AuthenticationResult) => {
+                        this.authService.instance.setActiveAccount(response.account);
+                        return true;
+                    }),
                     catchError(() => of(false))
                 );
         }
 
         const redirectStartPage = this.getDestinationUrl(url);
         this.authService.loginRedirect({
-            ...this.msalGuardConfig.authRequest,
             redirectStartPage,
             scopes: [],
+            ...this.msalGuardConfig.authRequest,
         });
         return of(false);
     }
@@ -60,7 +64,7 @@ export class MsalGuard implements CanActivate {
         return this.authService.handleRedirectObservable()
             .pipe(
                 concatMap(() => {
-                    if (!this.authService.getAllAccounts().length) {
+                    if (!this.authService.instance.getAllAccounts().length) {
                         return this.loginInteractively(state.url);
                     }
                     return of(true);

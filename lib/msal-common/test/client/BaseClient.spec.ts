@@ -1,12 +1,11 @@
 import { expect } from "chai";
 import { BaseClient } from "../../src/client/BaseClient";
-import { Authority, Constants, ServerTelemetryManager } from "../../src";
+import { Authority, Constants, ServerTelemetryManager, ServerTelemetryRequest } from "../../src";
 import { AADServerParamKeys, HeaderNames } from "../../src/utils/Constants";
-import { ClientTestUtils } from "./ClientTestUtils";
+import { ClientTestUtils, mockCrypto, MockStorageClass } from "./ClientTestUtils";
 import { ClientConfiguration } from "../../src/config/ClientConfiguration";
 import sinon from "sinon";
 import { DEFAULT_OPENID_CONFIG_RESPONSE, TEST_CONFIG } from "../utils/StringConstants";
-import { IdToken, ServerTelemetryRequest } from "../../dist/src";
 
 class TestClient extends BaseClient {
 
@@ -44,10 +43,6 @@ class TestClient extends BaseClient {
 }
 
 describe("BaseClient.ts Class Unit Tests", () => {
-    beforeEach(() => {
-        ClientTestUtils.setCloudDiscoveryMetadataStubs();
-    });
-
     afterEach(() => {
         sinon.restore();
     });
@@ -55,8 +50,7 @@ describe("BaseClient.ts Class Unit Tests", () => {
     describe("Constructor", () => {
 
         it("Creates a valid BaseClient object", async () => {
-
-            sinon.stub(Authority.prototype, <any>"discoverEndpoints").resolves(DEFAULT_OPENID_CONFIG_RESPONSE);
+            sinon.stub(Authority.prototype, <any>"getEndpointMetadataFromNetwork").resolves(DEFAULT_OPENID_CONFIG_RESPONSE.body);
             const config = await ClientTestUtils.createTestClientConfiguration();
             const client = new TestClient(config);
             expect(client).to.be.not.null;
@@ -64,8 +58,7 @@ describe("BaseClient.ts Class Unit Tests", () => {
         });
 
         it("Sets fields on BaseClient object", async () => {
-
-            sinon.stub(Authority.prototype, <any>"discoverEndpoints").resolves(DEFAULT_OPENID_CONFIG_RESPONSE);
+            sinon.stub(Authority.prototype, <any>"getEndpointMetadataFromNetwork").resolves(DEFAULT_OPENID_CONFIG_RESPONSE.body);
             const config = await ClientTestUtils.createTestClientConfiguration();
             const client = new TestClient(config);
 
@@ -77,11 +70,15 @@ describe("BaseClient.ts Class Unit Tests", () => {
     });
 
     describe("Header utils", () => {
+        beforeEach(() => {
+            sinon.stub(Authority.prototype, <any>"getEndpointMetadataFromNetwork").resolves(DEFAULT_OPENID_CONFIG_RESPONSE.body);
+        });
 
-        sinon.stub(Authority.prototype, <any>"discoverEndpoints").resolves(DEFAULT_OPENID_CONFIG_RESPONSE);
+        afterEach(() => {
+            sinon.restore();
+        });
+
         it("Creates default library headers", async () => {
-
-            sinon.stub(Authority.prototype, <any>"discoverEndpoints").resolves(DEFAULT_OPENID_CONFIG_RESPONSE);
             const config = await ClientTestUtils.createTestClientConfiguration();
             const client = new TestClient(config);
             const headers = client.createDefaultLibraryHeaders();
@@ -93,14 +90,13 @@ describe("BaseClient.ts Class Unit Tests", () => {
         });
 
         it("Creates telemetry headers if serverTelemetryManager is available on BaseClient", async () => {
-            sinon.stub(Authority.prototype, <any>"discoverEndpoints").resolves(DEFAULT_OPENID_CONFIG_RESPONSE);
             const config = await ClientTestUtils.createTestClientConfiguration();
             const telemetryPayload: ServerTelemetryRequest = {
                 clientId: config.authOptions.clientId,
                 apiId: 9999,
                 correlationId: "test-correlationId"
             };
-            config.serverTelemetryManager = new ServerTelemetryManager(telemetryPayload, config.storageInterface);
+            config.serverTelemetryManager = new ServerTelemetryManager(telemetryPayload, new MockStorageClass(TEST_CONFIG.MSAL_CLIENT_ID, mockCrypto));
             const client = new TestClient(config);
             const headers = client.createDefaultTokenRequestHeaders();
 
@@ -116,8 +112,6 @@ describe("BaseClient.ts Class Unit Tests", () => {
         });
 
         it("Creates default token request headers", async () => {
-
-            sinon.stub(Authority.prototype, <any>"discoverEndpoints").resolves(DEFAULT_OPENID_CONFIG_RESPONSE);
             const config = await ClientTestUtils.createTestClientConfiguration();
             const client = new TestClient(config);
             const headers = client.createDefaultTokenRequestHeaders();

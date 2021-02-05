@@ -12,7 +12,6 @@ import { Constants, GrantType } from "../utils/Constants";
 import { ClientConfiguration } from "../config/ClientConfiguration";
 import { TimeUtils } from "../utils/TimeUtils";
 import { ServerAuthorizationTokenResponse } from "../response/ServerAuthorizationTokenResponse";
-import { ScopeSet } from "../request/ScopeSet";
 import { ResponseHandler } from "../response/ResponseHandler";
 import { AuthenticationResult } from "../response/AuthenticationResult";
 import { StringUtils } from "../utils/StringUtils";
@@ -32,10 +31,10 @@ export class DeviceCodeClient extends BaseClient {
      * polls token endpoint to exchange device code for tokens
      * @param request
      */
-    public async acquireToken(request: DeviceCodeRequest): Promise<AuthenticationResult> {
-
+    public async acquireToken(request: DeviceCodeRequest): Promise<AuthenticationResult | null> {
         const deviceCodeResponse: DeviceCodeResponse = await this.getDeviceCode(request);
         request.deviceCodeCallback(deviceCodeResponse);
+        const reqTimestamp = TimeUtils.nowSeconds();
         const response: ServerAuthorizationTokenResponse = await this.acquireTokenWithDeviceCode(
             request,
             deviceCodeResponse);
@@ -44,17 +43,20 @@ export class DeviceCodeClient extends BaseClient {
             this.config.authOptions.clientId,
             this.cacheManager,
             this.cryptoUtils,
-            this.logger
+            this.logger,
+            this.config.serializableCache,
+            this.config.persistencePlugin
         );
 
         // Validate response. This function throws a server error if an error is returned by the server.
         responseHandler.validateTokenResponse(response);
-        const tokenResponse = responseHandler.handleServerTokenResponse(
+        return await responseHandler.handleServerTokenResponse(
             response,
-            this.authority
+            this.authority,
+            reqTimestamp,
+            request.resourceRequestMethod,
+            request.resourceRequestUri
         );
-
-        return tokenResponse;
     }
 
     /**
@@ -63,7 +65,7 @@ export class DeviceCodeClient extends BaseClient {
      */
     private async getDeviceCode(request: DeviceCodeRequest): Promise<DeviceCodeResponse> {
         const queryString = this.createQueryString(request);
-        const headers = this.createDefaultLibraryHeaders();
+        const headers = this.createDefaultTokenRequestHeaders();
         const thumbprint: RequestThumbprint = {
             clientId: this.config.authOptions.clientId,
             authority: request.authority,
@@ -121,7 +123,7 @@ export class DeviceCodeClient extends BaseClient {
 
         parameterBuilder.addScopes(request.scopes);
         parameterBuilder.addClientId(this.config.authOptions.clientId);
-        
+
         if (!StringUtils.isEmpty(request.claims) || this.config.authOptions.clientCapabilities && this.config.authOptions.clientCapabilities.length > 0) {
             parameterBuilder.addClaims(request.claims, this.config.authOptions.clientCapabilities);
         }
@@ -142,6 +144,7 @@ export class DeviceCodeClient extends BaseClient {
         const requestBody = this.createTokenRequestBody(request, deviceCodeResponse);
         const headers: Record<string, string> = this.createDefaultTokenRequestHeaders();
 
+        const userSpecifiedTimeout = request.timeout ? TimeUtils.nowSeconds() + request.timeout : undefined; 
         const deviceCodeExpirationTime = TimeUtils.nowSeconds() + deviceCodeResponse.expiresIn;
         const pollingIntervalMilli = deviceCodeResponse.interval * 1000;
 
@@ -159,7 +162,18 @@ export class DeviceCodeClient extends BaseClient {
                         clearInterval(intervalId);
                         reject(ClientAuthError.createDeviceCodeCancelledError());
 
+                    } else if (userSpecifiedTimeout && userSpecifiedTimeout < deviceCodeExpirationTime && TimeUtils.nowSeconds() > userSpecifiedTimeout) {
+
+                        this.logger.error(`User defined timeout for device code polling reached. The timeout was set for ${userSpecifiedTimeout}`);   
+                        clearInterval(intervalId);
+                        reject(ClientAuthError.createUserTimeoutReachedError());
+
                     } else if (TimeUtils.nowSeconds() > deviceCodeExpirationTime) {
+                        
+                        if (userSpecifiedTimeout) {
+                            this.logger.verbose(`User specified timeout ignored as the device code has expired before the timeout elapsed. The user specified timeout was set for ${userSpecifiedTimeout}`);
+                        }
+
                         this.logger.error(`Device code expired. Expiration time of device code was ${deviceCodeExpirationTime}`);
                         clearInterval(intervalId);
                         reject(ClientAuthError.createDeviceCodeExpiredError());
@@ -176,9 +190,9 @@ export class DeviceCodeClient extends BaseClient {
                             headers,
                             thumbprint);
 
-                        if (response.body && response.body.error == Constants.AUTHORIZATION_PENDING) {
+                        if (response.body && response.body.error === Constants.AUTHORIZATION_PENDING) {
                             // user authorization is pending. Sleep for polling interval and try again
-                            this.logger.info(response.body.error_description);
+                            this.logger.info(response.body.error_description || "no_error_description");
                         } else {
                             clearInterval(intervalId);
                             resolve(response.body);

@@ -1,9 +1,10 @@
 import { Component, OnInit, Inject, OnDestroy } from '@angular/core';
 import { MsalService, MsalBroadcastService } from './msal';
-import { MSAL_GUARD_CONFIG, InteractionType, MsalBroadcastEvent } from './msal/constants';
+import { MSAL_GUARD_CONFIG } from './msal/constants';
 import { MsalGuardConfiguration } from './msal/msal.guard.config';
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
+import { EventMessage, EventType, InteractionType, AuthenticationResult } from '@azure/msal-browser';
 
 @Component({
   selector: 'app-root',
@@ -19,7 +20,7 @@ export class AppComponent implements OnInit, OnDestroy {
   constructor(
     @Inject(MSAL_GUARD_CONFIG) private msalGuardConfig: MsalGuardConfiguration,
     private authService: MsalService,
-    private broadcastService: MsalBroadcastService
+    private msalBroadcastService: MsalBroadcastService
   ) {}
 
   ngOnInit(): void {
@@ -27,9 +28,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
     this.checkAccount();
 
-    this.broadcastService.msalSubject$
+    this.msalBroadcastService.msalSubject$
       .pipe(
-        filter(msg => msg.type === MsalBroadcastEvent.LOGIN_SUCCESS || msg.type === MsalBroadcastEvent.ACQUIRE_TOKEN_SUCCESS),
+        filter((msg: EventMessage) => msg.eventType === EventType.LOGIN_SUCCESS || msg.eventType === EventType.ACQUIRE_TOKEN_SUCCESS),
         takeUntil(this._destroying$)
       )
       .subscribe((result) => {
@@ -38,15 +39,30 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   checkAccount() {
-    this.loggedIn = this.authService.getAllAccounts().length > 0;
+    this.loggedIn = this.authService.instance.getAllAccounts().length > 0;
   }
 
   login() {
-    if (this.msalGuardConfig.interactionType === InteractionType.POPUP) {
-      this.authService.loginPopup({...this.msalGuardConfig.authRequest})
-        .subscribe(() => this.checkAccount());
+    if (this.msalGuardConfig.interactionType === InteractionType.Popup) {
+      if (this.msalGuardConfig.authRequest){
+        this.authService.loginPopup({...this.msalGuardConfig.authRequest})
+          .subscribe((response: AuthenticationResult) => {
+            this.authService.instance.setActiveAccount(response.account);
+            this.checkAccount();
+          });
+        } else {
+          this.authService.loginPopup()
+            .subscribe((response: AuthenticationResult) => {
+              this.authService.instance.setActiveAccount(response.account);
+              this.checkAccount();
+            });
+      }
     } else {
-      this.authService.loginRedirect({...this.msalGuardConfig.authRequest});
+      if (this.msalGuardConfig.authRequest){
+        this.authService.loginRedirect({...this.msalGuardConfig.authRequest});
+      } else {
+        this.authService.loginRedirect();
+      }
     }
   }
 

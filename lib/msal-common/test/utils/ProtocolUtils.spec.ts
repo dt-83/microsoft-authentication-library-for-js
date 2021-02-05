@@ -1,18 +1,16 @@
 import { expect } from "chai";
 import { ProtocolUtils } from "../../src/utils/ProtocolUtils";
-import { RANDOM_TEST_GUID, TEST_CONFIG } from "./StringConstants";
+import { RANDOM_TEST_GUID, TEST_CONFIG, TEST_POP_VALUES } from "./StringConstants";
 import { ICrypto, PkceCodes } from "../../src/crypto/ICrypto";
 import { Constants } from "../../src/utils/Constants";
 import sinon from "sinon";
-import { TimeUtils } from "../../src/utils/TimeUtils";
 import { ClientAuthError, ClientAuthErrorMessage } from "../../src";
 
 describe("ProtocolUtils.ts Class Unit Tests", () => {
 
     const userState = "userState";
-    const testTimeStamp = 1592846482;
-    const decodedLibState = `{"id":"${RANDOM_TEST_GUID}","ts":${testTimeStamp}}`;
-    const encodedLibState = `eyJpZCI6IiR7UkFORE9NX1RFU1RfR1VJRH0iLCJ0cyI6JHt0ZXN0VGltZVN0YW1wfX0=`;
+    const decodedLibState = `{"id":"${RANDOM_TEST_GUID}"}`;
+    const encodedLibState = `eyJpZCI6IjExNTUzYTliLTcxMTYtNDhiMS05ZDQ4LWY2ZDRhOGZmODM3MSJ9`;
     const testState = `${encodedLibState}${Constants.RESOURCE_DELIM}${userState}`;
 
     let cryptoInterface: ICrypto;
@@ -23,6 +21,8 @@ describe("ProtocolUtils.ts Class Unit Tests", () => {
             },
             base64Decode(input: string): string {
                 switch (input) {
+                    case TEST_POP_VALUES.ENCODED_REQ_CNF:
+                        TEST_POP_VALUES.DECODED_REQ_CNF;
                     case encodedLibState:
                         return decodedLibState;
                     default:
@@ -31,6 +31,8 @@ describe("ProtocolUtils.ts Class Unit Tests", () => {
             },
             base64Encode(input: string): string {
                 switch (input) {
+                    case TEST_POP_VALUES.DECODED_REQ_CNF:
+                        TEST_POP_VALUES.ENCODED_REQ_CNF;
                     case `${decodedLibState}`:
                         return encodedLibState;
                     default:
@@ -43,6 +45,12 @@ describe("ProtocolUtils.ts Class Unit Tests", () => {
                     verifier: TEST_CONFIG.TEST_VERIFIER,
                 };
             },
+            async getPublicKeyThumbprint(): Promise<string> {
+                return TEST_POP_VALUES.KID;
+            },
+            async signJwt(): Promise<string> {
+                return "";
+            }
         };
     });
 
@@ -51,13 +59,11 @@ describe("ProtocolUtils.ts Class Unit Tests", () => {
     });
 
     it("setRequestState() appends library state to given state", () => {
-        sinon.stub(TimeUtils, "nowSeconds").returns(testTimeStamp);
         const requestState = ProtocolUtils.setRequestState(cryptoInterface, userState);
         expect(requestState).to.be.eq(testState);
     });
 
     it("setRequestState() only creates library state", () => {
-        sinon.stub(TimeUtils, "nowSeconds").returns(testTimeStamp);
         const requestState = ProtocolUtils.setRequestState(cryptoInterface, "");
         expect(requestState).to.be.eq(encodedLibState);
     });

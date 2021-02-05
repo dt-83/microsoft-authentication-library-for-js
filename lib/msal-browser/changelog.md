@@ -1,8 +1,175 @@
 # Change Log - @azure/msal-browser
 
-This log was last generated on Thu, 17 Sep 2020 23:16:22 GMT and should not be manually modified.
+This log was last generated on Tue, 02 Feb 2021 01:56:47 GMT and should not be manually modified.
 
 <!-- Start content -->
+
+## 2.11.0
+
+Tue, 02 Feb 2021 01:56:47 GMT
+
+### Minor changes
+
+- Add initializeWrapperLibrary API (#2845) (thomas.norling@microsoft.com)
+- Add getInteractionStatusFromEvent to msal-browser (#2885) (joarroyo@microsoft.com)
+
+### Patches
+
+- Fix temp cache cleanup when using localStorage (#2935) (thomas.norling@microsoft.com)
+- Get package version from version.json (#2915) (thomas.norling@microsoft.com)
+
+## 2.10.0
+
+Thu, 21 Jan 2021 21:48:01 GMT
+
+### Minor changes
+
+- Authority metadata caching (#2758) (thomas.norling@microsoft.com)
+
+### Patches
+
+- Fix handling of multiple popup windows (#2842) (janutter@microsoft.com)
+- redirectStartPage supports relative URIs (#2866) (thomas.norling@microsoft.com)
+
+## 2.9.0
+
+Tue, 12 Jan 2021 00:51:26 GMT
+
+### Minor changes
+
+- Adding an active account API to PublicClientApplication (#2728) (prkanher@microsoft.com)
+- Add internal in-memory storage to BrowserCacheManager (#2765) (thomas.norling@microsoft.com)
+- Enable strict TypeScript option (#2792) (thomas.norling@microsoft.com)
+
+## 2.8.0
+
+Mon, 07 Dec 2020 22:19:03 GMT
+
+### Minor changes
+
+- Enable the instance_aware flow (#1804) (prkanher@microsoft.com)
+
+### Patches
+
+- Fix clearing of temporary cache items (#2696) (thomas.norling@microsoft.com)
+- Add exports to index.ts (#2680) (joarroyo@microsoft.com)
+- Expose idTokenClaims on AccountInfo (#2554) (janutter@microsoft.com)
+- Add onRedirectNavigate to redirect operations in browser (#2669) (janutter@microsoft.com)
+- Update Internal PCA Configuration (#2602) (thomas.norling@microsoft.com)
+- Add allowRedirectInIframe flag to browser (#2593) (janutter@microsoft.com)
+- Log messages contain package name and version (#2589) (thomas.norling@microsoft.com)
+- Update request types (#2512) (thomas.norling@microsoft.com)
+
+## 2.7.0
+
+Wed, 11 Nov 2020 23:33:20 GMT
+
+### Minor changes
+
+- Support relative paths on redirectUri parameter (#2560) (thomas.norling@microsoft.com)
+
+### Patches
+
+- Adds getAccountByLocalId to PCA Interface (#2588) (thomas.norling@microsoft.com)
+- Add navigateFrameWait and change loadFrameTimeout to browser to match core behavior (#2545) (janutter@microsoft.com)
+
+## 2.6.1
+
+Tue, 10 Nov 2020 01:48:44 GMT
+
+### Patches
+
+- Export stubbed PCA instance (#2540) (thomas.norling@microsoft.com)
+
+## 2.6.0
+
+Sat, 07 Nov 2020 01:50:14 GMT
+
+### Minor changes
+
+- Fixing a bug and adding `localAccountId` in AccountInfo interface (#2516) (sameera.gajjarapu@microsoft.com)
+
+## 2.5.2
+
+Mon, 02 Nov 2020 23:33:39 GMT
+
+### Patches
+
+- Fix JSON.parse issue and cache value validation (#2527) (prkanher@microsoft.com)
+
+## 2.5.1
+
+Fri, 30 Oct 2020 00:52:19 GMT
+
+### Patches
+
+- Restore string to cacheLocation type (#2523) (janutter@microsoft.com)
+
+## 2.5.0
+
+Thu, 29 Oct 2020 20:36:48 GMT
+
+### Minor changes
+
+- Add getLogger and setLogger to msal-browser (#2513) (joarroyo@microsoft.com)
+- Adding memory storage option for cache location (#2481) (prkanher@microsoft.com)
+
+### Patches
+
+- Add handleRedirect End Event (#2518) (thomas.norling@microsoft.com)
+- Ensure history.replaceState is a function (janutter@microsoft.com)
+- Allow hash to be passed into handleRedirectPromise, reset non-msal after processing (janutter@microsoft.com)
+
+## 2.4.1
+
+Mon, 26 Oct 2020 21:00:29 GMT
+
+### Patches
+
+- msal-browser and msal-node cache Interfaces to msal-common updated (#2415) (sameera.gajjarapu@microsoft.com)
+
+## 2.4.0
+
+Tue, 20 Oct 2020 23:47:28 GMT
+
+### Minor changes
+
+- Add removeEventCallback API (#2462) (thomas.norling@microsoft.com)
+- Add event api to msal-browser (#2394) (joarroyo@microsoft.com)
+
+### Patches
+
+- Use history API to clear hash for msal-browser (janutter@microsoft.com)
+- Export InteractionType (#2438) (thomas.norling@microsoft.com)
+- Add extraQueryParameters to acquireTokenSilent in msal-browser (janutter@microsoft.com)
+- Fix unexpected interaction_required error in redirect flow (#2404) (thomas.norling@microsoft.com)
+- Adds support for any OIDC-compliant authority (#2389). (jamckenn@microsoft.com)
+
+## 2.3.1
+
+Wed, 14 Oct 2020 23:45:07 GMT
+
+### Patches
+
+- Remove rogue console.log() in the BrowserCrypto.ts file and add a lint rule to prevent future issues (#2410) (prkanher@microsoft.com)
+- Check for Headers class when configuring network client (janutter@microsoft.com)
+- Update getItem to return ServerTelemetryEntity (#2223) (thomas.norling@microsoft.com)
+
+## 2.3.0
+
+Fri, 02 Oct 2020 17:42:35 GMT
+
+### Minor changes
+
+- Implementation of Access Token Proof-of-Possession Flow (#2151, #2153, #2154, #2209, #2289) (prkanher@microsoft.com)
+
+## 2.2.1
+
+Wed, 30 Sep 2020 17:58:33 GMT
+
+### Patches
+
+- Support SSR in msal-browser (#2073) (thomas.norling@microsoft.com)
 
 ## 2.2.0
 

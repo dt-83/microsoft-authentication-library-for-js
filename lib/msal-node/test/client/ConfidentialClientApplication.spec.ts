@@ -1,8 +1,12 @@
 import { ConfidentialClientApplication } from './../../src/client/ConfidentialClientApplication';
-import { Authority, ClientConfiguration, AuthorizationCodeRequest, AuthorityFactory, AuthorizationCodeClient, RefreshTokenRequest, RefreshTokenClient, StringUtils, ClientCredentialRequest, OnBehalfOfRequest } from '@azure/msal-common';
+import { Authority, ClientConfiguration,  AuthorityFactory, AuthorizationCodeClient,  RefreshTokenClient, StringUtils } from '@azure/msal-common';
 import { TEST_CONSTANTS } from '../utils/TestConstants';
 import { Configuration } from "../../src/config/Configuration";
+import { AuthorizationCodeRequest } from "../../src/request/AuthorizationCodeRequest";
 import { mocked } from 'ts-jest/utils';
+import { RefreshTokenRequest } from "../../src/request/RefreshTokenRequest";
+import { ClientCredentialRequest } from "../../src/request/ClientCredentialRequest";
+import { OnBehalfOfRequest } from "../../src/request/OnBehalfOfRequest";
 
 jest.mock('@azure/msal-common');
 
@@ -26,7 +30,7 @@ describe('ConfidentialClientApplication', () => {
         auth: {
             clientId: TEST_CONSTANTS.CLIENT_ID,
             authority: TEST_CONSTANTS.AUTHORITY,
-            clientSecret: TEST_CONSTANTS.CLIENT_SECRET,
+            clientSecret: TEST_CONSTANTS.CLIENT_SECRET
         },
     };
 
@@ -34,8 +38,6 @@ describe('ConfidentialClientApplication', () => {
         authOptions: {
             clientId: TEST_CONSTANTS.CLIENT_ID,
             authority: authority,
-            knownAuthorities: [],
-            cloudDiscoveryMetadata: "",
             clientCapabilities: []
         },
         clientCredentials: {
@@ -55,7 +57,7 @@ describe('ConfidentialClientApplication', () => {
             code: TEST_CONSTANTS.AUTHORIZATION_CODE,
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        mocked(AuthorityFactory.createDiscoveredInstance).mockReturnValue(Promise.resolve(authority));
 
         const authApp = new ConfidentialClientApplication(appConfig);
         await authApp.acquireTokenByCode(request);
@@ -71,7 +73,7 @@ describe('ConfidentialClientApplication', () => {
             refreshToken: TEST_CONSTANTS.REFRESH_TOKEN,
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        mocked(AuthorityFactory.createDiscoveredInstance).mockReturnValue(Promise.resolve(authority));
 
         const authApp = new ConfidentialClientApplication(appConfig);
         await authApp.acquireTokenByRefreshToken(request);
@@ -87,7 +89,7 @@ describe('ConfidentialClientApplication', () => {
             skipCache: false
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        mocked(AuthorityFactory.createDiscoveredInstance).mockReturnValue(Promise.resolve(authority));
 
         const authApp = new ConfidentialClientApplication(appConfig);
         await authApp.acquireTokenByClientCredential(request);
@@ -103,7 +105,7 @@ describe('ConfidentialClientApplication', () => {
             oboAssertion: TEST_CONSTANTS.ACCESS_TOKEN
         };
 
-        mocked(AuthorityFactory.createInstance).mockReturnValueOnce(authority);
+        mocked(AuthorityFactory.createDiscoveredInstance).mockReturnValue(Promise.resolve(authority));
 
         const authApp = new ConfidentialClientApplication(appConfig);
         await authApp.acquireTokenOnBehalfOf(request);

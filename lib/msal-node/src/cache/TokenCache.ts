@@ -4,11 +4,11 @@
  */
 
 import { Storage } from "./Storage";
-import { ClientAuthError, StringUtils, AccountEntity, AccountInfo, Logger} from "@azure/msal-common";
-import { InMemoryCache, JsonCache, SerializedAccountEntity, SerializedAccessTokenEntity, SerializedRefreshTokenEntity, SerializedIdTokenEntity, SerializedAppMetadataEntity } from "./serializer/SerializerTypes";
-import { ICachePlugin } from "./ICachePlugin";
+import { StringUtils, AccountEntity, AccountInfo, Logger, ISerializableTokenCache, ICachePlugin, TokenCacheContext } from "@azure/msal-common";
+import { InMemoryCache, JsonCache, SerializedAccountEntity, SerializedAccessTokenEntity, SerializedRefreshTokenEntity, SerializedIdTokenEntity, SerializedAppMetadataEntity, CacheKVStore } from "./serializer/SerializerTypes";
 import { Deserializer } from "./serializer/Deserializer";
 import { Serializer } from "./serializer/Serializer";
+import { ITokenCache } from "./ITokenCache";
 
 const defaultSerializedCache: JsonCache = {
     Account: {},
@@ -21,16 +21,16 @@ const defaultSerializedCache: JsonCache = {
 /**
  * In-memory token cache manager
  */
-export class TokenCache {
+export class TokenCache implements ISerializableTokenCache, ITokenCache {
 
     private storage: Storage;
-    private hasChanged: boolean;
+    private cacheHasChanged: boolean;
     private cacheSnapshot: string;
     private readonly persistence: ICachePlugin;
     private logger: Logger;
 
     constructor(storage: Storage, logger: Logger, cachePlugin?: ICachePlugin) {
-        this.hasChanged = false;
+        this.cacheHasChanged = false;
         this.storage = storage;
         this.storage.registerChangeEmitter(this.handleChangeEvent.bind(this));
         if (cachePlugin) {
@@ -40,10 +40,10 @@ export class TokenCache {
     }
 
     /**
-     * Set to true if cache state has changed since last time serialized() or writeToPersistence was called
+     * Set to true if cache state has changed since last time serialize or writeToPersistence was called
      */
-    cacheHasChanged(): boolean {
-        return this.hasChanged;
+    hasChanged(): boolean {
+        return this.cacheHasChanged;
     }
 
     /**
@@ -65,7 +65,7 @@ export class TokenCache {
         } else {
             this.logger.verbose("No cache snapshot to merge");
         }
-        this.hasChanged = false;
+        this.cacheHasChanged = false;
 
         return JSON.stringify(finalState);
     }
@@ -89,84 +89,85 @@ export class TokenCache {
         }
     }
 
-    /**
-     * Serializes cache into JSON and calls ICachePlugin.writeToStorage. ICachePlugin must be set on ClientApplication
-     */
-    async writeToPersistence(): Promise<void> {
-        this.logger.verbose("Writing to persistent cache");
-        if (this.persistence) {
-            this.logger.verbose("cachePlugin (persistent cache) not set by the user");
-            let cache = Serializer.serializeAllCache(this.storage.getInMemoryCache() as InMemoryCache);
-            const getMergedState = (stateFromDisk: string) => {
-                if (!StringUtils.isEmpty(stateFromDisk)) {
-                    this.logger.verbose("Reading state from disk");
-                    this.cacheSnapshot = stateFromDisk;
-                    cache = this.mergeState(JSON.parse(stateFromDisk), cache);
-                } else {
-                    this.logger.verbose("No state from disk");
-                }
-
-                return JSON.stringify(cache);
-            };
-
-            await this.persistence.writeToStorage(getMergedState);
-            this.hasChanged = false;
-        } else {
-            throw ClientAuthError.createCachePluginError();
-        }
-    }
-
-    /**
-     * Calls ICachePlugin.readFromStorage and deserializes JSON to in-memory cache.
-     * ICachePlugin must be set on ClientApplication.
-     */
-    async readFromPersistence(): Promise<void> {
-        this.logger.verbose("Reading from persistent cache");
-        if (this.persistence) {
-            this.cacheSnapshot = await this.persistence.readFromStorage();
-
-            if (!StringUtils.isEmpty(this.cacheSnapshot)) {
-                this.logger.verbose("Reading cache snapshot from disk");
-                const cache = this.overlayDefaults(
-                    JSON.parse(this.cacheSnapshot)
-                );
-                this.logger.verbose("Deserializing JSON");
-                const deserializedCache = Deserializer.deserializeAllCache(
-                    cache
-                );
-                this.storage.setInMemoryCache(deserializedCache);
-            } else {
-                this.logger.verbose("No cache snapshot to overlay and deserialize");
-            }
-        } else {
-            throw ClientAuthError.createCachePluginError();
-        }
+    getKVStore(): CacheKVStore {
+        return this.storage.getCache();
     }
 
     /**
      * API that retrieves all accounts currently in cache to the user
      */
-    getAllAccounts(): AccountInfo[] {
+    async getAllAccounts(): Promise<AccountInfo[]> {
+
         this.logger.verbose("getAllAccounts called");
-        return this.storage.getAllAccounts();
+        let cacheContext;
+        try {
+            if (this.persistence) {
+                cacheContext = new TokenCacheContext(this, false);
+                await this.persistence.beforeCacheAccess(cacheContext);
+            }
+            return this.storage.getAllAccounts();
+        } finally {
+            if (this.persistence && cacheContext) {
+                await this.persistence.afterCacheAccess(cacheContext);
+            }
+        }
+    }
+
+    /**
+     * Returns the signed in account matching homeAccountId.
+     * (the account object is created at the time of successful login)
+     * or null when no matching account is found
+     * @returns {@link AccountInfo} - the account object stored in MSAL
+     */
+    async getAccountByHomeId(homeAccountId: string): Promise<AccountInfo | null> {
+        const allAccounts = await this.getAllAccounts();
+        if (!StringUtils.isEmpty(homeAccountId) && allAccounts && allAccounts.length) {
+            return allAccounts.filter(accountObj => accountObj.homeAccountId === homeAccountId)[0] || null;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Returns the signed in account matching localAccountId.
+     * (the account object is created at the time of successful login)
+     * or null when no matching account is found
+     * @returns {@link AccountInfo} - the account object stored in MSAL
+     */
+    async getAccountByLocalId(localAccountId: string): Promise<AccountInfo | null> {
+        const allAccounts = await this.getAllAccounts();
+        if (!StringUtils.isEmpty(localAccountId) && allAccounts && allAccounts.length) {
+            return allAccounts.filter(accountObj => accountObj.localAccountId === localAccountId)[0] || null;
+        } else {
+            return null;
+        }
     }
 
     /**
      * API to remove a specific account and the relevant data from cache
      * @param account
      */
-    removeAccount(account: AccountInfo) {
+    async removeAccount(account: AccountInfo): Promise<void> {
         this.logger.verbose("removeAccount called");
-        this.storage.removeAccount(
-            AccountEntity.generateAccountCacheKey(account)
-        );
+        let cacheContext;
+        try {
+            if (this.persistence) {
+                cacheContext = new TokenCacheContext(this, true);
+                await this.persistence.beforeCacheAccess(cacheContext);
+            }
+            this.storage.removeAccount(AccountEntity.generateAccountCacheKey(account));
+        } finally {
+            if (this.persistence && cacheContext) {
+                await this.persistence.afterCacheAccess(cacheContext);
+            }
+        }
     }
 
     /**
      * Called when the cache has changed state.
      */
     private handleChangeEvent() {
-        this.hasChanged = true;
+        this.cacheHasChanged = true;
     }
 
     /**
@@ -220,11 +221,11 @@ export class TokenCache {
      */
     private mergeRemovals(oldState: JsonCache, newState: JsonCache): JsonCache {
         this.logger.verbose("Remove updated entries in cache");
-        const accounts = oldState.Account != null ? this.mergeRemovalsDict<SerializedAccountEntity>(oldState.Account, newState.Account) : oldState.Account;
-        const accessTokens = oldState.AccessToken != null ? this.mergeRemovalsDict<SerializedAccessTokenEntity>(oldState.AccessToken, newState.AccessToken) : oldState.AccessToken;
-        const refreshTokens = oldState.RefreshToken != null ? this.mergeRemovalsDict<SerializedRefreshTokenEntity>(oldState.RefreshToken, newState.RefreshToken) : oldState.RefreshToken;
-        const idTokens = oldState.IdToken != null ? this.mergeRemovalsDict<SerializedIdTokenEntity>(oldState.IdToken, newState.IdToken) : oldState.IdToken;
-        const appMetadata = oldState.AppMetadata != null ? this.mergeRemovalsDict<SerializedAppMetadataEntity>(oldState.AppMetadata, newState.AppMetadata) : oldState.AppMetadata;
+        const accounts = oldState.Account ? this.mergeRemovalsDict<SerializedAccountEntity>(oldState.Account, newState.Account) : oldState.Account;
+        const accessTokens = oldState.AccessToken ? this.mergeRemovalsDict<SerializedAccessTokenEntity>(oldState.AccessToken, newState.AccessToken) : oldState.AccessToken;
+        const refreshTokens = oldState.RefreshToken ? this.mergeRemovalsDict<SerializedRefreshTokenEntity>(oldState.RefreshToken, newState.RefreshToken) : oldState.RefreshToken;
+        const idTokens = oldState.IdToken ? this.mergeRemovalsDict<SerializedIdTokenEntity>(oldState.IdToken, newState.IdToken) : oldState.IdToken;
+        const appMetadata = oldState.AppMetadata ? this.mergeRemovalsDict<SerializedAppMetadataEntity>(oldState.AppMetadata, newState.AppMetadata) : oldState.AppMetadata;
 
         return {
             ...oldState,
@@ -237,7 +238,7 @@ export class TokenCache {
     }
 
     private mergeRemovalsDict<T>(oldState: Record<string, T>, newState?: Record<string, T>): Record<string, T> {
-        const finalState = {...oldState};
+        const finalState = { ...oldState };
         Object.keys(oldState).forEach((oldKey) => {
             if (!newState || !(newState.hasOwnProperty(oldKey))) {
                 delete finalState[oldKey];

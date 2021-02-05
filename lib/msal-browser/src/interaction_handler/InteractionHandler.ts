@@ -2,10 +2,12 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-import { StringUtils, AuthorizationCodeRequest, CacheSchemaType, AuthenticationResult, AuthorizationCodeClient } from "@azure/msal-common";
-import { BrowserStorage } from "../cache/BrowserStorage";
+
+import { StringUtils, AuthorizationCodeRequest, AuthenticationResult, AuthorizationCodeClient, AuthorityFactory, Authority, INetworkModule, ClientAuthError } from "@azure/msal-common";
+import { BrowserCacheManager } from "../cache/BrowserCacheManager";
 import { BrowserAuthError } from "../error/BrowserAuthError";
-import { BrowserProtocolUtils } from "../utils/BrowserProtocolUtils";
+
+export type InteractionParams = {};
 
 /**
  * Abstract class which defines operations for a browser interaction handling class.
@@ -13,46 +15,63 @@ import { BrowserProtocolUtils } from "../utils/BrowserProtocolUtils";
 export abstract class InteractionHandler {
 
     protected authModule: AuthorizationCodeClient;
-    protected browserStorage: BrowserStorage;
+    protected browserStorage: BrowserCacheManager;
     protected authCodeRequest: AuthorizationCodeRequest;
 
-    constructor(authCodeModule: AuthorizationCodeClient, storageImpl: BrowserStorage) {
+    constructor(authCodeModule: AuthorizationCodeClient, storageImpl: BrowserCacheManager, authCodeRequest: AuthorizationCodeRequest) {
         this.authModule = authCodeModule;
         this.browserStorage = storageImpl;
+        this.authCodeRequest = authCodeRequest;
     }
 
     /**
      * Function to enable user interaction.
      * @param requestUrl
      */
-    abstract initiateAuthRequest(requestUrl: string, authCodeRequest: AuthorizationCodeRequest): Window | Promise<HTMLIFrameElement>;
+    abstract initiateAuthRequest(requestUrl: string, params: InteractionParams): Window | Promise<HTMLIFrameElement> | Promise<void>;
 
     /**
      * Function to handle response parameters from hash.
      * @param locationHash
      */
-    async handleCodeResponse(locationHash: string): Promise<AuthenticationResult> {
+    async handleCodeResponse(locationHash: string, state: string, authority: Authority, networkModule: INetworkModule): Promise<AuthenticationResult> {
         // Check that location hash isn't empty.
         if (StringUtils.isEmpty(locationHash)) {
             throw BrowserAuthError.createEmptyHashError(locationHash);
         }
 
-        // Deserialize hash fragment response parameters.
-        const serverParams = BrowserProtocolUtils.parseServerResponseFromHash(locationHash);
-
         // Handle code response.
-        const requestState = this.browserStorage.getItem(this.browserStorage.generateStateKey(serverParams.state), CacheSchemaType.TEMPORARY) as string;
-        const authCode = this.authModule.handleFragmentResponse(locationHash, requestState);
-        
+        const stateKey = this.browserStorage.generateStateKey(state);
+        const requestState = this.browserStorage.getTemporaryCache(stateKey);
+        if (!requestState) {
+            throw ClientAuthError.createStateNotFoundError("Cached State");
+        }
+        const authCodeResponse = this.authModule.handleFragmentResponse(locationHash, requestState);
+
         // Get cached items
-        const cachedNonce = this.browserStorage.getItem(this.browserStorage.generateNonceKey(requestState), CacheSchemaType.TEMPORARY) as string;
+        const nonceKey = this.browserStorage.generateNonceKey(requestState);
+        const cachedNonce = this.browserStorage.getTemporaryCache(nonceKey);
 
         // Assign code to request
-        this.authCodeRequest.code = authCode;
+        this.authCodeRequest.code = authCodeResponse.code;
+
+        // Check for new cloud instance
+        if (authCodeResponse.cloud_instance_host_name) {
+            await this.updateTokenEndpointAuthority(authCodeResponse.cloud_instance_host_name, authority, networkModule);
+        }
+
+        authCodeResponse.nonce = cachedNonce || undefined;
+        authCodeResponse.state = requestState;
 
         // Acquire token with retrieved code.
-        const tokenResponse = await this.authModule.acquireToken(this.authCodeRequest, cachedNonce, requestState);
-        this.browserStorage.cleanRequest(serverParams.state);
+        const tokenResponse = await this.authModule.acquireToken(this.authCodeRequest, authCodeResponse);
+        this.browserStorage.cleanRequestByState(state);
         return tokenResponse;
+    }
+
+    protected async updateTokenEndpointAuthority(cloudInstanceHostname: string, authority: Authority, networkModule: INetworkModule): Promise<void> {
+        const cloudInstanceAuthorityUri = `https://${cloudInstanceHostname}/${authority.tenant}/`;
+        const cloudInstanceAuthority = await AuthorityFactory.createDiscoveredInstance(cloudInstanceAuthorityUri, networkModule, this.browserStorage, authority.options);
+        this.authModule.updateAuthority(cloudInstanceAuthority);
     }
 }

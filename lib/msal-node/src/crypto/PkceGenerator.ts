@@ -5,7 +5,7 @@
 
 import { PkceCodes } from "@azure/msal-common";
 import { CharSet, Hash, RANDOM_OCTET_SIZE } from "../utils/Constants";
-import { EncodingUtils } from "./../utils/EncodingUtils";
+import { EncodingUtils } from "../utils/EncodingUtils";
 import crypto from "crypto";
 
 /**
@@ -37,7 +37,8 @@ export class PkceGenerator {
      */
     private generateCodeChallengeFromVerifier(codeVerifier: string): string {
         return EncodingUtils.base64EncodeUrl(
-            this.sha256(codeVerifier).toString("ascii")
+            this.sha256(codeVerifier).toString("base64"), 
+            "base64"
         );
     }
 

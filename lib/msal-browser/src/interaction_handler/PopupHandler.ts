@@ -2,11 +2,19 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
-import { UrlString, StringUtils, Constants, AuthorizationCodeRequest, CacheSchemaType, AuthorizationCodeClient } from "@azure/msal-common";
-import { InteractionHandler } from "./InteractionHandler";
+
+import { UrlString, StringUtils, AuthorizationCodeRequest, AuthorizationCodeClient, Constants } from "@azure/msal-common";
+import { InteractionHandler, InteractionParams } from "./InteractionHandler";
 import { BrowserAuthError } from "../error/BrowserAuthError";
-import { BrowserConstants } from "../utils/BrowserConstants";
-import { BrowserStorage } from "../cache/BrowserStorage";
+import { BrowserConstants, InteractionType, TemporaryCacheKeys } from "../utils/BrowserConstants";
+import { BrowserCacheManager } from "../cache/BrowserCacheManager";
+import { DEFAULT_POPUP_TIMEOUT_MS } from "../config/Configuration";
+import { AuthorizationUrlRequest } from "../request/AuthorizationUrlRequest";
+
+export type PopupParams = InteractionParams & {
+    popup?: Window|null;
+    popupName: string
+};
 
 /**
  * This class implements the interaction handler base class for browsers. It is written specifically for handling
@@ -14,10 +22,10 @@ import { BrowserStorage } from "../cache/BrowserStorage";
  */
 export class PopupHandler extends InteractionHandler {
 
-    private currentWindow: Window;
+    private currentWindow: Window|undefined;
 
-    constructor(authCodeModule: AuthorizationCodeClient, storageImpl: BrowserStorage) {
-        super(authCodeModule, storageImpl);
+    constructor(authCodeModule: AuthorizationCodeClient, storageImpl: BrowserCacheManager, authCodeRequest: AuthorizationCodeRequest) {
+        super(authCodeModule, storageImpl, authCodeRequest);
 
         // Properly sets this reference for the unload event.
         this.unloadWindow = this.unloadWindow.bind(this);
@@ -27,16 +35,14 @@ export class PopupHandler extends InteractionHandler {
      * Opens a popup window with given request Url.
      * @param requestUrl
      */
-    initiateAuthRequest(requestUrl: string, authCodeRequest: AuthorizationCodeRequest, popup?: Window|null): Window {
+    initiateAuthRequest(requestUrl: string, params: PopupParams): Window {
         // Check that request url is not empty.
         if (!StringUtils.isEmpty(requestUrl)) {
-            // Save auth code request
-            this.authCodeRequest = authCodeRequest;
             // Set interaction status in the library.
-            this.browserStorage.setItem(this.browserStorage.generateCacheKey(BrowserConstants.INTERACTION_STATUS_KEY), BrowserConstants.INTERACTION_IN_PROGRESS_VALUE, CacheSchemaType.TEMPORARY);
+            this.browserStorage.setTemporaryCache(TemporaryCacheKeys.INTERACTION_STATUS_KEY, BrowserConstants.INTERACTION_IN_PROGRESS_VALUE, true);
             this.authModule.logger.infoPii("Navigate to:" + requestUrl);
             // Open the popup window to requestUrl.
-            return this.openPopup(requestUrl, popup);
+            return this.openPopup(requestUrl, params.popupName, params.popup);
         } else {
             // Throw error if request URL is empty.
             this.authModule.logger.error("Navigate url is empty");
@@ -52,6 +58,10 @@ export class PopupHandler extends InteractionHandler {
      */
     monitorPopupForHash(popupWindow: Window, timeout: number): Promise<string> {
         return new Promise((resolve, reject) => {
+            if (timeout < DEFAULT_POPUP_TIMEOUT_MS) {
+                this.authModule.logger.warning(`system.loadFrameTimeout or system.windowHashTimeout set to lower (${timeout}ms) than the default (${DEFAULT_POPUP_TIMEOUT_MS}ms). This may result in timeouts.`);
+            }
+
             const maxTicks = timeout / BrowserConstants.POLL_INTERVAL_MS;
             let ticks = 0;
 
@@ -64,7 +74,7 @@ export class PopupHandler extends InteractionHandler {
                     return;
                 }
 
-                let href: string;
+                let href: string = Constants.EMPTY_STRING;
                 try {
                     /*
                      * Will throw if cross origin,
@@ -92,7 +102,7 @@ export class PopupHandler extends InteractionHandler {
                     // Timeout error
                     this.cleanPopup(popupWindow);
                     clearInterval(intervalId);
-                    reject(BrowserAuthError.createMonitorWindowTimeoutError());
+                    reject(BrowserAuthError.createMonitorPopupTimeoutError());
                     return;
                 }
             }, BrowserConstants.POLL_INTERVAL_MS);
@@ -111,16 +121,16 @@ export class PopupHandler extends InteractionHandler {
      * @ignore
      * @hidden
      */
-    private openPopup(urlNavigate: string, popup?: Window|null): Window {
+    private openPopup(urlNavigate: string, popupName: string, popup?: Window|null): Window {
         try {
             let popupWindow;
             // Popup window passed in, setting url to navigate to
             if (popup) {
                 popupWindow = popup;
                 popupWindow.location.assign(urlNavigate);
-            } else if (typeof popup === "undefined") { 
+            } else if (typeof popup === "undefined") {
                 // Popup will be undefined if it was not passed in
-                popupWindow = PopupHandler.openSizedPopup(urlNavigate);
+                popupWindow = PopupHandler.openSizedPopup(urlNavigate, popupName);
             }
 
             // Popup will be null if popups are blocked
@@ -136,12 +146,12 @@ export class PopupHandler extends InteractionHandler {
             return popupWindow;
         } catch (e) {
             this.authModule.logger.error("error opening popup " + e.message);
-            this.browserStorage.removeItem(this.browserStorage.generateCacheKey(BrowserConstants.INTERACTION_STATUS_KEY));
+            this.browserStorage.removeItem(this.browserStorage.generateCacheKey(TemporaryCacheKeys.INTERACTION_STATUS_KEY));
             throw BrowserAuthError.createPopupWindowError(e.toString());
         }
     }
 
-    static openSizedPopup(urlNavigate: string = "about:blank"): Window|null {
+    static openSizedPopup(urlNavigate: string, popupName: string): Window|null {
         /**
          * adding winLeft and winTop to account for dual monitor
          * using screenLeft and screenTop for IE8 and earlier
@@ -157,17 +167,19 @@ export class PopupHandler extends InteractionHandler {
         const left = Math.max(0, ((width / 2) - (BrowserConstants.POPUP_WIDTH / 2)) + winLeft);
         const top = Math.max(0, ((height / 2) - (BrowserConstants.POPUP_HEIGHT / 2)) + winTop);
 
-        return window.open(urlNavigate, Constants.LIBRARY_NAME, "width=" + BrowserConstants.POPUP_WIDTH + ", height=" + BrowserConstants.POPUP_HEIGHT + ", top=" + top + ", left=" + left);
+        return window.open(urlNavigate, popupName, "width=" + BrowserConstants.POPUP_WIDTH + ", height=" + BrowserConstants.POPUP_HEIGHT + ", top=" + top + ", left=" + left);
     }
 
     /**
      * Event callback to unload main window.
      */
     unloadWindow(e: Event): void {
-        this.browserStorage.cleanRequest();
-        this.currentWindow.close();
+        this.browserStorage.cleanRequestByInteractionType(InteractionType.Popup);
+        if (this.currentWindow) {
+            this.currentWindow.close();
+        }
         // Guarantees browser unload will happen, so no other errors will be thrown.
-        delete e["returnValue"];
+        e.preventDefault();
     }
 
     /**
@@ -183,6 +195,15 @@ export class PopupHandler extends InteractionHandler {
         window.removeEventListener("beforeunload", this.unloadWindow);
 
         // Interaction is completed - remove interaction status.
-        this.browserStorage.removeItem(this.browserStorage.generateCacheKey(BrowserConstants.INTERACTION_STATUS_KEY));
+        this.browserStorage.removeItem(this.browserStorage.generateCacheKey(TemporaryCacheKeys.INTERACTION_STATUS_KEY));
+    }
+
+    /**
+     * Generates the name for the popup based on the client id and request
+     * @param clientId 
+     * @param request 
+     */
+    static generatePopupName(clientId: string, request: AuthorizationUrlRequest): string {
+        return `msal.${clientId}.${request.scopes.join("-")}.${request.authority}.${request.correlationId}`;
     }
 }

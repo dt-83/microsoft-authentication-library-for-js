@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. All rights reserved.
  * Licensed under the MIT License.
  */
+
 export const Constants = {
     LIBRARY_NAME: "MSAL.JS",
     SKU: "msal.js.common",
@@ -34,7 +35,9 @@ export const Constants = {
     S256_CODE_CHALLENGE_METHOD: "S256",
     URL_FORM_CONTENT_TYPE: "application/x-www-form-urlencoded;charset=utf-8",
     AUTHORIZATION_PENDING: "authorization_pending",
-    NOT_DEFINED: "not_defined"
+    NOT_DEFINED: "not_defined",
+    EMPTY_STRING: "",
+    FORWARD_SLASH: "/" 
 };
 
 /**
@@ -101,33 +104,22 @@ export enum AADServerParamKeys {
     X_CLIENT_OS = "x-client-OS",
     X_CLIENT_CPU = "x-client-CPU",
     POST_LOGOUT_URI = "post_logout_redirect_uri",
+    ID_TOKEN_HINT= "id_token_hint",
     DEVICE_CODE = "device_code",
     CLIENT_SECRET = "client_secret",
     CLIENT_ASSERTION = "client_assertion",
     CLIENT_ASSERTION_TYPE = "client_assertion_type",
+    TOKEN_TYPE = "token_type",
+    REQ_CNF = "req_cnf",
     OBO_ASSERTION = "assertion",
     REQUESTED_TOKEN_USE = "requested_token_use",
     ON_BEHALF_OF = "on_behalf_of",
+    FOCI = "foci"
 }
 
 /**
- * IdToken claim string constants
+ * Claims request keys
  */
-export enum IdTokenClaimName {
-    ISSUER = "iss",
-    OBJID = "oid",
-    SUBJECT = "sub",
-    TENANTID = "tid",
-    VERSION = "ver",
-    PREF_USERNAME = "preferred_username",
-    NAME = "name",
-    NONCE = "nonce",
-    EXPIRATION = "exp",
-    HOME_OBJID = "home_oid",
-    SESSIONID = "sid",
-    CLOUD_INSTANCE_HOSTNAME = "cloud_instance_host_name"
-}
-
 export enum ClaimsRequestKeys {
     ACCESS_TOKEN = "access_token",
     XMS_CC = "xms_cc"
@@ -205,7 +197,7 @@ export enum GrantType {
     RESOURCE_OWNER_PASSWORD_GRANT = "password",
     REFRESH_TOKEN_GRANT = "refresh_token",
     DEVICE_CODE_GRANT = "device_code",
-    JWT_BEARER = "urn:ietf:params:oauth:grant-type:jwt-bearer" 
+    JWT_BEARER = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 }
 
 /**
@@ -271,14 +263,37 @@ export enum CacheType {
  */
 export const APP_METADATA = "appmetadata";
 export const ClientInfo = "client_info";
+export const THE_FAMILY_ID = "1";
+
+export const AUTHORITY_METADATA_CONSTANTS = {
+    CACHE_KEY: "authority-metadata",
+    REFRESH_TIME_SECONDS: 3600 * 24 // 24 Hours
+};
+
+export enum AuthorityMetadataSource {
+    CONFIG = "config",
+    CACHE = "cache",
+    NETWORK = "network"
+}
 
 export const SERVER_TELEM_CONSTANTS = {
     SCHEMA_VERSION: 2,
-    FAILURE_LIMIT: 3,
+    MAX_HEADER_BYTES: 4000, // Max is 4KB, 4000 Bytes provides 96 Byte buffer for separators, schema version, etc. 
     CACHE_KEY: "server-telemetry",
     CATEGORY_SEPARATOR: "|",
-    VALUE_SEPARATOR: ","
+    VALUE_SEPARATOR: ",",
+    OVERFLOW_TRUE: "1",
+    OVERFLOW_FALSE: "0",
+    UNKNOWN_ERROR: "unknown_error"
 };
+
+/**
+ * Type of the authentication request
+ */
+export enum AuthenticationScheme {
+    POP = "pop",
+    BEARER = "Bearer"
+}
 
 /**
  * Constants related to throttling
@@ -291,3 +306,16 @@ export const ThrottlingConstants = {
     // Prefix for storing throttling entries
     THROTTLING_PREFIX: "throttling"
 };
+
+export const Errors = {
+    INVALID_GRANT_ERROR: "invalid_grant",
+    CLIENT_MISMATCH_ERROR: "client_mismatch",
+};
+
+/**
+ * Password grant parameters
+ */
+export enum PasswordGrantConstants {
+    username = "username",
+    password = "password"
+}
